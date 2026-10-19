@@ -103,7 +103,7 @@ function formatarDocumento(valor = "") {
 }
 
 /* =========================================================
-   CARD
+   CARD DO CONDOMÍNIO
 ========================================================= */
 
 export default function CondominioCard({
@@ -126,9 +126,14 @@ export default function CondominioCard({
     ? condominio.areasComuns
     : [];
 
-  const documentoFormatado = formatarDocumento(condominio.documento);
-  const telefoneFormatado = formatarTelefone(condominio.telefone);
-  const cepFormatado = formatarCEP(condominio.cep);
+  const documentoFormatado =
+    formatarDocumento(condominio.documento);
+
+  const telefoneFormatado =
+    formatarTelefone(condominio.telefone);
+
+  const cepFormatado =
+    formatarCEP(condominio.cep);
 
   return (
     <article
@@ -144,7 +149,10 @@ export default function CondominioCard({
         shadow-[0_16px_40px_rgba(0,0,0,0.28)]
       "
     >
-      {/* brilho interno */}
+      {/* =====================================================
+          EFEITO DE VIDRO ORIGINAL
+      ===================================================== */}
+
       <div
         className="
           pointer-events-none
@@ -158,60 +166,75 @@ export default function CondominioCard({
       />
 
       <div className="relative z-10">
+
         {/* =====================================================
-            TOPO
+            CABEÇALHO
         ===================================================== */}
 
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <div
+
+          <div className="flex min-w-0 items-center gap-4">
+
+            <Building2
               className="
-                flex
-                h-12
-                w-12
-                items-center
-                justify-center
-                rounded-2xl
-                bg-[#89A58F]/15
-                border
-                border-[#89A58F]/30
+                h-7
+                w-7
+                shrink-0
+                text-[#FFFFFF]
               "
-            >
-              <Building2
-                className="h-6 w-6 text-[#A6C2A8]"
-                strokeWidth={1.8}
-              />
-            </div>
+              strokeWidth={1.8}
+            />
 
             <div className="min-w-0">
-              <h3 className="truncate text-lg font-semibold text-white">
+
+              <h3
+                className="
+                  truncate
+                  text-lg
+                  font-semibold
+                  text-[#FFFFFF]
+                "
+              >
                 {condominio.nome || "Condomínio sem nome"}
               </h3>
 
               {documentoFormatado && (
-                <p className="mt-1 text-xs text-white/60">
+                <p
+                  className="
+                    mt-1
+                    text-xs
+                    text-[#FFFFFF]
+                  "
+                >
                   {documentoFormatado}
                 </p>
               )}
+
             </div>
           </div>
 
+          {/* STATUS */}
+
           <span
-            className="
+            className={`
+              shrink-0
               rounded-full
               border
-              border-[#89A58F]/30
-              bg-[#89A58F]/20
               px-3
               py-1
               text-xs
               font-semibold
-              text-[#C8E2CB]
-              backdrop-blur-md
-            "
+              text-[#FFFFFF]
+              ${
+                condominio.ativo
+                  ? "border-[#6F9272] bg-[#6F9272]"
+                  : "border-white/25 bg-white/10"
+              }
+            `}
           >
             {condominio.ativo ? "Ativo" : "Inativo"}
           </span>
+
         </div>
 
         {/* =====================================================
@@ -219,45 +242,85 @@ export default function CondominioCard({
         ===================================================== */}
 
         {endereco && (
-          <div className="mt-5 flex items-start gap-3 text-sm text-white/80">
+          <div
+            className="
+              mt-5
+              flex
+              items-start
+              gap-3
+              text-sm
+              text-[#FFFFFF]
+            "
+          >
             <MapPin
-              className="mt-0.5 h-4 w-4 shrink-0 text-[#89A58F]"
+              className="
+                mt-0.5
+                h-5
+                w-5
+                shrink-0
+                text-[#6F9272]
+              "
               strokeWidth={1.8}
             />
 
-            <span>{endereco}</span>
-          </div>
-        )}
-
-        {/* Telefone / CEP */}
-
-        {(telefoneFormatado || cepFormatado) && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/55">
-            {telefoneFormatado && <span>{telefoneFormatado}</span>}
-
-            {telefoneFormatado && cepFormatado && <span>•</span>}
-
-            {cepFormatado && <span>CEP {cepFormatado}</span>}
+            <span className="text-[#FFFFFF]">
+              {endereco}
+            </span>
           </div>
         )}
 
         {/* =====================================================
-            RESUMO
+            TELEFONE E CEP
+        ===================================================== */}
+
+        {(telefoneFormatado || cepFormatado) && (
+          <div
+            className="
+              mt-3
+              flex
+              flex-wrap
+              items-center
+              gap-3
+              text-xs
+              text-[#FFFFFF]
+            "
+          >
+            {telefoneFormatado && (
+              <span className="text-[#FFFFFF]">
+                {telefoneFormatado}
+              </span>
+            )}
+
+            {telefoneFormatado && cepFormatado && (
+              <span className="text-[#FFFFFF]">•</span>
+            )}
+
+            {cepFormatado && (
+              <span className="text-[#FFFFFF]">
+                CEP {cepFormatado}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* =====================================================
+            RESUMO DA ESTRUTURA
+            CARD MANTIDO
         ===================================================== */}
 
         <div
           className="
             mt-5
             rounded-2xl
-            border
-            border-white/10
-            bg-white/5
+            border-2
+            border-[#6F9272]
+            bg-transparent
             px-4
             py-3
-            backdrop-blur-xl
           "
         >
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+
             <ResumoInfo
               icon={<Building2 className="h-4 w-4" />}
               valor={condominio.blocos || 0}
@@ -279,6 +342,7 @@ export default function CondominioCard({
               valor={condominio.vagasGaragem || 0}
               label="vagas"
             />
+
           </div>
         </div>
 
@@ -288,29 +352,43 @@ export default function CondominioCard({
 
         {areasComuns.length > 0 && (
           <div className="mt-5">
-            <p className="text-xs uppercase tracking-wider text-white/45">
+
+            <p
+              className="
+                text-xs
+                font-semibold
+                uppercase
+                tracking-wider
+                text-[#FFFFFF]
+              "
+            >
               Áreas comuns
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
+
               {areasComuns.map((area) => (
                 <span
                   key={area}
                   className="
                     rounded-full
                     border
-                    border-white/10
-                    bg-white/10
+                    border-[#6F9272]
+                    bg-[#6F9272]
                     px-3
                     py-1.5
                     text-xs
-                    text-white/80
-                    backdrop-blur-md
+                    font-semibold
+                    text-[#FFFFFF]
+                    transition-colors
+                    duration-300
+                    hover:bg-[#5C7D60]
                   "
                 >
                   {area}
                 </span>
               ))}
+
             </div>
           </div>
         )}
@@ -319,11 +397,23 @@ export default function CondominioCard({
             AÇÕES
         ===================================================== */}
 
-        <div className="mt-6 flex items-center justify-end gap-3 border-t border-white/10 pt-4">
+        <div
+          className="
+            mt-6
+            flex
+            items-center
+            justify-end
+            gap-3
+            border-t
+            border-white/10
+            pt-4
+          "
+        >
           <button
             type="button"
             onClick={() => onEditar?.(condominio)}
             title="Editar condomínio"
+            aria-label="Editar condomínio"
             className="
               flex
               h-10
@@ -331,25 +421,24 @@ export default function CondominioCard({
               items-center
               justify-center
               rounded-xl
-              border
-              border-white/10
-              bg-white/5
-              text-white/70
-              backdrop-blur-md
+              text-[#FFFFFF]
               transition-all
               duration-300
-              hover:border-[#89A58F]/40
-              hover:bg-[#89A58F]/20
-              hover:text-[#CFE8D1]
+              hover:text-[#6F9272]
+              active:scale-[0.96]
             "
           >
-            <Pencil className="h-4 w-4" strokeWidth={1.8} />
+            <Pencil
+              className="h-5 w-5 text-current"
+              strokeWidth={1.8}
+            />
           </button>
 
           <button
             type="button"
             onClick={() => onExcluir?.(condominio)}
             title="Excluir condomínio"
+            aria-label="Excluir condomínio"
             className="
               flex
               h-10
@@ -357,45 +446,56 @@ export default function CondominioCard({
               items-center
               justify-center
               rounded-xl
-              border
-              border-white/10
-              bg-white/5
-              text-white/70
-              backdrop-blur-md
+              text-[#FFFFFF]
               transition-all
               duration-300
-              hover:bg-red-500/20
-              hover:border-red-400/30
-              hover:text-red-200
+              hover:text-red-300
+              active:scale-[0.96]
             "
           >
-            <Trash2 className="h-4 w-4" strokeWidth={1.8} />
+            <Trash2
+              className="h-5 w-5 text-current"
+              strokeWidth={1.8}
+            />
           </button>
         </div>
+
       </div>
     </article>
   );
 }
 
 /* =========================================================
-   COMPONENTES AUXILIARES
+   INFORMAÇÕES DO RESUMO
 ========================================================= */
 
 function ResumoInfo({ icon, valor, label }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[#89A58F]">{icon}</span>
 
-      <span className="font-semibold text-white">{valor}</span>
+      <span className="text-[#6F9272]">
+        {icon}
+      </span>
 
-      <span className="text-white/60">{label}</span>
+      <span className="font-semibold text-[#FFFFFF]">
+        {valor}
+      </span>
+
+      <span className="text-[#FFFFFF]">
+        {label}
+      </span>
+
     </div>
   );
 }
 
+/* =========================================================
+   SEPARADOR
+========================================================= */
+
 function Separador() {
   return (
-    <span className="hidden text-white/20 sm:inline">
+    <span className="hidden text-[#FFFFFF]/60 sm:inline">
       •
     </span>
   );

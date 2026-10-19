@@ -21,6 +21,11 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/auth/firebase";
+import useAuth from "@/auth/AuthContext";
+
+/* ======================================================
+   SEÇÕES DO DASHBOARD
+====================================================== */
 
 const secoes = [
   {
@@ -49,7 +54,13 @@ const secoes = [
   },
 ];
 
+/* ======================================================
+   DASHBOARD
+====================================================== */
+
 export default function MinhaArea() {
+  const { user } = useAuth();
+
   const [selecionado, setSelecionado] =
     useState("condominios");
 
@@ -82,35 +93,29 @@ export default function MinhaArea() {
   const [carregando, setCarregando] =
     useState(true);
 
+  /* ======================================================
+     CARREGAR DADOS
+  ====================================================== */
+
   async function carregarDashboard() {
     try {
       setCarregando(true);
 
-      /* =====================================================
+      /* ================================================
          CONDOMÍNIOS
-      ===================================================== */
+      ================================================ */
 
       try {
         const totalSnap =
           await getCountFromServer(
-            collection(
-              db,
-              "condominios"
-            )
+            collection(db, "condominios")
           );
 
         const ativosSnap =
           await getCountFromServer(
             query(
-              collection(
-                db,
-                "condominios"
-              ),
-              where(
-                "ativo",
-                "==",
-                true
-              )
+              collection(db, "condominios"),
+              where("ativo", "==", true)
             )
           );
 
@@ -125,8 +130,7 @@ export default function MinhaArea() {
           condominios: {
             total,
             ativos,
-            inativos:
-              total - ativos,
+            inativos: total - ativos,
           },
         }));
       } catch (error) {
@@ -136,43 +140,25 @@ export default function MinhaArea() {
         );
       }
 
-      /* =====================================================
+      /* ================================================
          MORADORES
-      ===================================================== */
+      ================================================ */
 
       try {
         const totalSnap =
           await getCountFromServer(
             query(
-              collection(
-                db,
-                "usuarios"
-              ),
-              where(
-                "role",
-                "==",
-                "morador"
-              )
+              collection(db, "usuarios"),
+              where("role", "==", "morador")
             )
           );
 
         const ativosSnap =
           await getCountFromServer(
             query(
-              collection(
-                db,
-                "usuarios"
-              ),
-              where(
-                "role",
-                "==",
-                "morador"
-              ),
-              where(
-                "ativo",
-                "==",
-                true
-              )
+              collection(db, "usuarios"),
+              where("role", "==", "morador"),
+              where("ativo", "==", true)
             )
           );
 
@@ -187,8 +173,7 @@ export default function MinhaArea() {
           moradores: {
             total,
             ativos,
-            inativos:
-              total - ativos,
+            inativos: total - ativos,
           },
         }));
       } catch (error) {
@@ -198,43 +183,25 @@ export default function MinhaArea() {
         );
       }
 
-      /* =====================================================
+      /* ================================================
          SÍNDICOS
-      ===================================================== */
+      ================================================ */
 
       try {
         const totalSnap =
           await getCountFromServer(
             query(
-              collection(
-                db,
-                "usuarios"
-              ),
-              where(
-                "role",
-                "==",
-                "sindico"
-              )
+              collection(db, "usuarios"),
+              where("role", "==", "sindico")
             )
           );
 
         const ativosSnap =
           await getCountFromServer(
             query(
-              collection(
-                db,
-                "usuarios"
-              ),
-              where(
-                "role",
-                "==",
-                "sindico"
-              ),
-              where(
-                "ativo",
-                "==",
-                true
-              )
+              collection(db, "usuarios"),
+              where("role", "==", "sindico"),
+              where("ativo", "==", true)
             )
           );
 
@@ -249,8 +216,7 @@ export default function MinhaArea() {
           sindicos: {
             total,
             ativos,
-            inativos:
-              total - ativos,
+            inativos: total - ativos,
           },
         }));
       } catch (error) {
@@ -260,33 +226,21 @@ export default function MinhaArea() {
         );
       }
 
-      /* =====================================================
+      /* ================================================
          CHAMADOS
-      ===================================================== */
+      ================================================ */
 
       try {
         const totalSnap =
           await getCountFromServer(
-            collection(
-              db,
-              "chamados"
-            )
+            collection(db, "chamados")
           );
-
-        /*
-         * Como ainda não definimos oficialmente
-         * os valores de status dos chamados,
-         * mantemos os contadores específicos
-         * em zero até o módulo de Chamados
-         * estabelecer essa estrutura.
-         */
 
         setDados((atual) => ({
           ...atual,
           chamados: {
             ...atual.chamados,
-            total:
-              totalSnap.data().count,
+            total: totalSnap.data().count,
           },
         }));
       } catch (error) {
@@ -300,471 +254,318 @@ export default function MinhaArea() {
     }
   }
 
+  /* ======================================================
+     CARREGAMENTO INICIAL
+  ====================================================== */
+
   useEffect(() => {
     carregarDashboard();
   }, []);
 
+  /* ======================================================
+     SEÇÃO ATUAL
+  ====================================================== */
+
   const secaoAtual =
     secoes.find(
-      (item) =>
-        item.id === selecionado
+      (item) => item.id === selecionado
     ) || secoes[0];
+
+  const IconeSecao = secaoAtual.icone;
+
+  /* ======================================================
+     USUÁRIO
+  ====================================================== */
+
+  const nomeUsuario =
+    user?.nome ||
+    user?.name ||
+    "Usuário";
+
+  const primeiroNome =
+    nomeUsuario.trim().split(" ")[0];
+
+  /* ======================================================
+     DADOS DA SEÇÃO ATUAL
+  ====================================================== */
+
+  const dadosSecao = dados[selecionado];
+
+  /* ======================================================
+     RENDER
+  ====================================================== */
 
   return (
     <div className="morada-enter space-y-6">
 
-      {/* =====================================================
+      {/* ==================================================
           CABEÇALHO
-      ===================================================== */}
+      ================================================== */}
+
+      <header className="px-1 pt-1">
+        <h1
+          className="
+            text-3xl
+            font-semibold
+            tracking-[-0.02em]
+            text-[#FFFFFF]
+          "
+        >
+          Olá, {primeiroNome}!
+        </h1>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#FFFFFF]
+          "
+        >
+          Bem-vindo de volta. Aqui está o resumo da
+          plataforma Morada Oficial.
+        </p>
+      </header>
+
+      {/* ==================================================
+          BARRA DE SELEÇÃO
+          Mesmo padrão visual de Chamados
+      ================================================== */}
 
       <section
         className="
-          rounded-3xl
-          bg-white
-          p-6
-          shadow-sm
+          overflow-hidden
+          rounded-2xl
+          border-2
+          border-[#6F9272]
+          bg-transparent
+          p-1
         "
       >
         <div
           className="
-            flex
-            flex-col
-            gap-4
-            md:flex-row
-            md:items-center
-            md:justify-between
+            grid
+            grid-cols-2
+            gap-1
+            sm:grid-cols-4
           "
         >
-          <div>
-            <p
-              className="
-                text-sm
-                font-medium
-                text-[#6F8D7A]
-              "
-            >
-              Minha Área
-            </p>
+          {secoes.map((secao) => {
+            const Icone = secao.icone;
 
-            <h1
-              className="
-                mt-1
-                text-3xl
-                font-bold
-                text-[#595959]
-              "
-            >
-              Dashboard
-            </h1>
+            const ativo =
+              selecionado === secao.id;
 
-            <p
-              className="
-                mt-2
-                text-sm
-                text-[#8A8A8A]
-              "
-            >
-              Administração da plataforma Morada.
-            </p>
-          </div>
+            const quantidade =
+              dados[secao.id]?.total ?? 0;
 
-          <div
-            className="
-              rounded-2xl
-              bg-[#F3F6F4]
-              px-4
-              py-3
-            "
-          >
-            <p
-              className="
-                text-xs
-                text-[#8A8A8A]
-              "
-            >
-              Acesso
-            </p>
-
-            <p
-              className="
-                text-sm
-                font-semibold
-                text-[#6F8D7A]
-              "
-            >
-              Super administrador
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          ATALHOS INFORMATIVOS
-      ===================================================== */}
-
-      <section
-        className="
-          grid
-          grid-cols-1
-          gap-3
-          sm:grid-cols-2
-          xl:grid-cols-4
-        "
-      >
-        {secoes.map((secao) => {
-          const Icone =
-            secao.icone;
-
-          const ativo =
-            selecionado === secao.id;
-
-          const quantidade =
-            dados[secao.id]?.total ?? 0;
-
-          return (
-            <button
-              key={secao.id}
-              type="button"
-              onClick={() =>
-                setSelecionado(
-                  secao.id
-                )
-              }
-              className={`
-                flex
-                min-h-[58px]
-                items-center
-                justify-between
-                gap-3
-                rounded-xl
-                px-4
-                py-3
-                text-left
-                transition-all
-                ${
-                  ativo
-                    ? "bg-[#6F8D7A] text-white shadow-sm"
-                    : "bg-[#6F8D7A] text-white opacity-[0.82] hover:opacity-100"
+            return (
+              <button
+                key={secao.id}
+                type="button"
+                onClick={() =>
+                  setSelecionado(secao.id)
                 }
-              `}
-            >
-              <div
-                className="
+                aria-pressed={ativo}
+                className={`
                   flex
+                  min-h-[46px]
+                  min-w-0
                   items-center
-                  gap-3
-                "
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  px-2
+                  py-2
+                  text-center
+                  text-[13px]
+                  font-semibold
+                  text-[#FFFFFF]
+                  transition-all
+                  duration-300
+                  sm:px-3
+                  sm:text-[14px]
+                  ${
+                    ativo
+                      ? `
+                        bg-[#6F9272]
+                        shadow-[0_8px_22px_rgba(111,146,114,0.20)]
+                      `
+                      : `
+                        bg-transparent
+                        hover:bg-[#6F9272]/15
+                      `
+                  }
+                `}
               >
                 <Icone
-                  className="h-5 w-5 shrink-0"
+                  className="
+                    h-[18px]
+                    w-[18px]
+                    shrink-0
+                    text-[#FFFFFF]
+                  "
                   strokeWidth={1.8}
                 />
 
-                <span
-                  className="
-                    text-sm
-                    font-semibold
-                  "
-                >
+                <span className="text-[#FFFFFF]">
                   {secao.titulo}
                 </span>
-              </div>
 
-              <span
-                className="
-                  text-sm
-                  font-semibold
-                  opacity-90
-                "
-              >
-                {carregando
-                  ? "--"
-                  : quantidade}
-              </span>
-            </button>
-          );
-        })}
+                <span
+                  className="
+                    shrink-0
+                    text-[#FFFFFF]
+                  "
+                >
+                  {carregando ? "—" : quantidade}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      {/* =====================================================
+      {/* ==================================================
           RESUMO SELECIONADO
-      ===================================================== */}
+      ================================================== */}
 
       <section
         className="
           rounded-3xl
-          bg-white
+          border
+          border-white/15
+          bg-white/20
           p-6
-          shadow-sm
+          shadow-[0_10px_35px_rgba(20,30,25,0.12)]
+          backdrop-blur-2xl
         "
       >
-        <div
-          className="
-            flex
-            items-start
-            gap-4
-          "
-        >
-          <div
+        {/* CABEÇALHO DO RESUMO */}
+
+        <div className="flex items-start gap-4">
+          <IconeSecao
             className="
-              flex
-              h-12
-              w-12
+              mt-0.5
+              h-7
+              w-7
               shrink-0
-              items-center
-              justify-center
-              rounded-full
-              bg-[#F3F6F4]
-              text-[#6F8D7A]
+              text-[#FFFFFF]
             "
-          >
-            <secaoAtual.icone
-              className="h-6 w-6"
-              strokeWidth={1.8}
-            />
-          </div>
+            strokeWidth={1.8}
+          />
 
           <div>
             <h2
               className="
+                text-lg
                 font-semibold
-                text-[#333]
+                text-[#FFFFFF]
               "
             >
               {secaoAtual.titulo}
             </h2>
 
-            <p
-              className="
-                mt-1
-                text-sm
-                text-[#748078]
-              "
-            >
+            <p className="mt-1 text-sm text-[#FFFFFF]">
               {secaoAtual.descricao}
             </p>
           </div>
         </div>
 
-        {/* ===================================================
-            CONDOMÍNIOS
-        =================================================== */}
+        {/* ================================================
+            CARDS DOS INDICADORES
+        ================================================ */}
 
-        {selecionado ===
-          "condominios" && (
-          <div
-            className="
-              mt-6
-              grid
-              gap-3
-              md:grid-cols-3
-            "
-          >
-            <ResumoItem
-              icone={
-                <Building2 className="h-4 w-4" />
-              }
-              titulo="Total"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.condominios.total
-              }
-            />
+        <div
+          className="
+            mt-7
+            grid
+            grid-cols-1
+            gap-4
+            md:grid-cols-3
+          "
+        >
+          {/* TOTAL */}
 
-            <ResumoItem
-              icone={
-                <CheckCircle2 className="h-4 w-4" />
-              }
-              titulo="Ativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.condominios.ativos
-              }
-            />
+          <ResumoItem
+            icone={
+              selecionado === "condominios" ? (
+                <Building2 className="h-6 w-6" />
+              ) : selecionado === "chamados" ? (
+                <Headset className="h-6 w-6" />
+              ) : selecionado === "moradores" ? (
+                <Users className="h-6 w-6" />
+              ) : (
+                <ShieldCheck className="h-6 w-6" />
+              )
+            }
+            titulo="Total"
+            valor={
+              carregando
+                ? "--"
+                : dadosSecao?.total ?? 0
+            }
+          />
 
-            <ResumoItem
-              icone={
-                <CircleAlert className="h-4 w-4" />
-              }
-              titulo="Inativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.condominios.inativos
-              }
-            />
-          </div>
-        )}
+          {/* ATIVOS / RESPONDIDOS */}
 
-        {/* ===================================================
-            CHAMADOS
-        =================================================== */}
+          <ResumoItem
+            icone={
+              <CheckCircle2 className="h-6 w-6" />
+            }
+            titulo={
+              selecionado === "chamados"
+                ? "Respondidos"
+                : "Ativos"
+            }
+            valor={
+              carregando
+                ? "--"
+                : selecionado === "chamados"
+                ? dadosSecao?.respondidos ?? 0
+                : dadosSecao?.ativos ?? 0
+            }
+          />
 
-        {selecionado ===
-          "chamados" && (
-          <div
-            className="
-              mt-6
-              grid
-              gap-3
-              md:grid-cols-3
-            "
-          >
-            <ResumoItem
-              icone={
-                <Headset className="h-4 w-4" />
-              }
-              titulo="Total"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.chamados.total
-              }
-            />
+          {/* INATIVOS / AGUARDANDO */}
 
-            <ResumoItem
-              icone={
-                <CheckCircle2 className="h-4 w-4" />
-              }
-              titulo="Respondidos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.chamados.respondidos
-              }
-            />
-
-            <ResumoItem
-              icone={
-                <Clock3 className="h-4 w-4" />
-              }
-              titulo="Aguardando resposta"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.chamados.aguardando
-              }
-            />
-          </div>
-        )}
-
-        {/* ===================================================
-            MORADORES
-        =================================================== */}
-
-        {selecionado ===
-          "moradores" && (
-          <div
-            className="
-              mt-6
-              grid
-              gap-3
-              md:grid-cols-3
-            "
-          >
-            <ResumoItem
-              icone={
-                <Users className="h-4 w-4" />
-              }
-              titulo="Total"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.moradores.total
-              }
-            />
-
-            <ResumoItem
-              icone={
-                <CheckCircle2 className="h-4 w-4" />
-              }
-              titulo="Ativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.moradores.ativos
-              }
-            />
-
-            <ResumoItem
-              icone={
-                <CircleAlert className="h-4 w-4" />
-              }
-              titulo="Inativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.moradores.inativos
-              }
-            />
-          </div>
-        )}
-
-        {/* ===================================================
-            SÍNDICOS
-        =================================================== */}
-
-        {selecionado ===
-          "sindicos" && (
-          <div
-            className="
-              mt-6
-              grid
-              gap-3
-              md:grid-cols-3
-            "
-          >
-            <ResumoItem
-              icone={
-                <ShieldCheck className="h-4 w-4" />
-              }
-              titulo="Total"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.sindicos.total
-              }
-            />
-
-            <ResumoItem
-              icone={
-                <CheckCircle2 className="h-4 w-4" />
-              }
-              titulo="Ativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.sindicos.ativos
-              }
-            />
-
-            <ResumoItem
-              icone={
-                <CircleAlert className="h-4 w-4" />
-              }
-              titulo="Inativos"
-              valor={
-                carregando
-                  ? "--"
-                  : dados.sindicos.inativos
-              }
-            />
-          </div>
-        )}
+          <ResumoItem
+            icone={
+              selecionado === "chamados" ? (
+                <Clock3 className="h-6 w-6" />
+              ) : (
+                <CircleAlert className="h-6 w-6" />
+              )
+            }
+            titulo={
+              selecionado === "chamados"
+                ? "Aguardando resposta"
+                : "Inativos"
+            }
+            valor={
+              carregando
+                ? "--"
+                : selecionado === "chamados"
+                ? dadosSecao?.aguardando ?? 0
+                : dadosSecao?.inativos ?? 0
+            }
+          />
+        </div>
       </section>
 
-      {/* =====================================================
+      {/* ==================================================
           ATIVIDADE RECENTE
-      ===================================================== */}
+      ================================================== */}
 
       <section
         className="
           rounded-3xl
-          bg-white
+          border
+          border-white/15
+          bg-white/20
           p-6
-          shadow-sm
+          shadow-[0_10px_35px_rgba(20,30,25,0.12)]
+          backdrop-blur-2xl
         "
       >
         <div>
@@ -772,39 +573,27 @@ export default function MinhaArea() {
             className="
               text-xl
               font-semibold
-              text-[#595959]
+              text-[#FFFFFF]
             "
           >
             Atividade recente
           </h2>
 
-          <p
-            className="
-              mt-1
-              text-sm
-              text-[#8A8A8A]
-            "
-          >
+          <p className="mt-1 text-sm text-[#FFFFFF]">
             Ações recentes realizadas na plataforma.
           </p>
         </div>
 
         <div
           className="
-            mt-6
-            rounded-2xl
-            bg-[#F8F4EF]
-            px-6
-            py-10
-            text-center
+            mt-7
+            flex
+            min-h-[100px]
+            items-center
+            justify-center
           "
         >
-          <p
-            className="
-              text-sm
-              text-[#8A8A8A]
-            "
-          >
+          <p className="text-sm text-[#FFFFFF]">
             Nenhuma atividade registrada ainda.
           </p>
         </div>
@@ -814,7 +603,7 @@ export default function MinhaArea() {
 }
 
 /* =========================================================
-   ITEM DE RESUMO
+   CARD INDIVIDUAL DOS INDICADORES
 ========================================================= */
 
 function ResumoItem({
@@ -825,43 +614,50 @@ function ResumoItem({
   return (
     <div
       className="
+        flex
+        min-h-[110px]
+        items-center
+        gap-4
         rounded-2xl
-        bg-[#F8F4EF]
-        p-4
+        bg-[#6F9272]
+        px-5
+        py-5
+        text-[#FFFFFF]
+        shadow-[0_8px_22px_rgba(111,146,114,0.16)]
+        transition-all
+        duration-300
+        hover:bg-[#5C7D60]
       "
     >
-      <div
-        className="
-          flex
-          items-center
-          gap-2
-          text-[#6F8D7A]
-        "
-      >
+      <div className="shrink-0 text-[#FFFFFF]">
         {icone}
+      </div>
 
+      <div>
         <span
           className="
-            text-xs
+            block
+            text-[14px]
             font-medium
-            text-[#748078]
+            text-[#FFFFFF]
           "
         >
           {titulo}
         </span>
-      </div>
 
-      <strong
-        className="
-          mt-2
-          block
-          text-2xl
-          font-semibold
-          text-[#333]
-        "
-      >
-        {valor}
-      </strong>
+        <strong
+          className="
+            mt-2
+            block
+            text-3xl
+            font-semibold
+            leading-none
+            text-[#FFFFFF]
+          "
+        >
+          {valor}
+        </strong>
+      </div>
     </div>
   );
 }

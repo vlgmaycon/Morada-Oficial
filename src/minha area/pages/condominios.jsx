@@ -2,18 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   ClipboardPlus,
-  Building2,
   Search,
   Trash2,
   LockKeyhole,
   X,
+  ChevronDown,
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Home,
+  Car,
+  Pencil,
 } from "lucide-react";
 
 import { auth } from "@/auth/firebase";
+import { criarContaAdminTemporaria } from "@/auth/moradaApi";
 
-import CondominioCard from "../components/CondominioCard";
 import CondominioForm from "../components/CondominioForm";
-import EmptyState from "../components/EmptyState";
 
 import {
   listarCondominios,
@@ -26,6 +32,22 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
 } from "firebase/auth";
+
+/* =========================================================
+   PADRÃO VISUAL MORADA OFICIAL
+========================================================= */
+
+const CARD_GLASS = `
+  rounded-3xl
+  border border-white/15
+  bg-white/20
+  shadow-[0_10px_35px_rgba(20,30,25,0.12)]
+  backdrop-blur-2xl
+`;
+
+/* =========================================================
+   PÁGINA DE CONDOMÍNIOS
+========================================================= */
 
 export default function Condominios() {
   const [abaAtiva, setAbaAtiva] = useState("lista");
@@ -40,23 +62,20 @@ export default function Condominios() {
   const [condominioParaExcluir, setCondominioParaExcluir] =
     useState(null);
 
-  const [senhaExclusao, setSenhaExclusao] =
-    useState("");
+  const [senhaExclusao, setSenhaExclusao] = useState("");
 
-  const [carregando, setCarregando] =
-    useState(true);
+  const [carregando, setCarregando] = useState(true);
 
-  const [salvando, setSalvando] =
-    useState(false);
+  const [salvando, setSalvando] = useState(false);
 
-  const [excluindo, setExcluindo] =
-    useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
-  const [erro, setErro] =
-    useState("");
+  const [erro, setErro] = useState("");
 
-  const [sucesso, setSucesso] =
-    useState("");
+  const [sucesso, setSucesso] = useState("");
+
+  const [condominioAberto, setCondominioAberto] =
+    useState(null);
 
   /* =========================================================
      CARREGAR CONDOMÍNIOS
@@ -66,8 +85,7 @@ export default function Condominios() {
     try {
       setErro("");
 
-      const lista =
-        await listarCondominios();
+      const lista = await listarCondominios();
 
       setCondominios(lista);
     } catch (error) {
@@ -100,18 +118,7 @@ export default function Condominios() {
   }
 
   /* =========================================================
-     ABRIR LISTAGEM
-  ========================================================= */
-
-  function abrirLista() {
-    setAbaAtiva("lista");
-    setCondominioEditando(null);
-    setErro("");
-    setSucesso("");
-  }
-
-  /* =========================================================
-     EDITAR
+     EDITAR CONDOMÍNIO
   ========================================================= */
 
   function abrirEdicao(condominio) {
@@ -122,7 +129,7 @@ export default function Condominios() {
   }
 
   /* =========================================================
-     SALVAR
+     SALVAR CONDOMÍNIO
   ========================================================= */
 
   async function salvarCondominio(dados) {
@@ -132,10 +139,7 @@ export default function Condominios() {
       setSucesso("");
 
       if (condominioEditando?.id) {
-        const {
-          id,
-          ...dadosAtualizacao
-        } = dados;
+        const { id, ...dadosAtualizacao } = dados;
 
         await editarCondominio(
           condominioEditando.id,
@@ -156,6 +160,7 @@ export default function Condominios() {
       await carregarCondominios();
 
       setCondominioEditando(null);
+      setCondominioAberto(null);
       setAbaAtiva("lista");
     } catch (error) {
       console.error(
@@ -182,44 +187,47 @@ export default function Condominios() {
   }
 
   /* =========================================================
-     EXCLUSÃO
+     EXPANDIR E RECOLHER CONDOMÍNIO
   ========================================================= */
 
-  function abrirConfirmacaoExclusao(
-    condominio
-  ) {
-    setCondominioParaExcluir(
-      condominio
+  function alternarCondominio(id) {
+    setCondominioAberto((atual) =>
+      atual === id ? null : id
     );
+  }
 
+  /* =========================================================
+     CONFIRMAÇÃO DE EXCLUSÃO
+  ========================================================= */
+
+  function abrirConfirmacaoExclusao(condominio) {
+    setCondominioParaExcluir(condominio);
     setSenhaExclusao("");
     setErro("");
     setSucesso("");
   }
 
   function fecharConfirmacaoExclusao() {
-    if (excluindo) {
-      return;
-    }
+    if (excluindo) return;
 
     setCondominioParaExcluir(null);
     setSenhaExclusao("");
     setErro("");
   }
 
-  async function confirmarExclusao() {
-    if (!condominioParaExcluir) {
-      return;
-    }
+  /* =========================================================
+     EXCLUIR CONDOMÍNIO
+  ========================================================= */
 
-    const usuarioAtual =
-      auth.currentUser;
+  async function confirmarExclusao() {
+    if (!condominioParaExcluir) return;
+
+    const usuarioAtual = auth.currentUser;
 
     if (!usuarioAtual) {
       setErro(
         "Sua sessão expirou. Faça login novamente."
       );
-
       return;
     }
 
@@ -227,7 +235,6 @@ export default function Condominios() {
       setErro(
         "Não foi possível identificar sua conta."
       );
-
       return;
     }
 
@@ -235,7 +242,6 @@ export default function Condominios() {
       setErro(
         "Digite sua senha para confirmar a exclusão."
       );
-
       return;
     }
 
@@ -244,25 +250,28 @@ export default function Condominios() {
       setErro("");
       setSucesso("");
 
-      const credencial =
-        EmailAuthProvider.credential(
-          usuarioAtual.email,
-          senhaExclusao
-        );
+      const credencial = EmailAuthProvider.credential(
+        usuarioAtual.email,
+        senhaExclusao
+      );
 
       await reauthenticateWithCredential(
         usuarioAtual,
         credencial
       );
 
-      await excluirCondominio(
-        condominioParaExcluir.id
-      );
+      const idExcluido = condominioParaExcluir.id;
 
-      await carregarCondominios();
+      await excluirCondominio(idExcluido);
+
+      setCondominioAberto((atual) =>
+        atual === idExcluido ? null : atual
+      );
 
       setCondominioParaExcluir(null);
       setSenhaExclusao("");
+
+      await carregarCondominios();
 
       setSucesso(
         "Condomínio excluído com sucesso."
@@ -276,24 +285,21 @@ export default function Condominios() {
       );
 
       if (
-        error?.code ===
-        "auth/invalid-credential"
+        error?.code === "auth/invalid-credential" ||
+        error?.code === "auth/wrong-password"
       ) {
         setErro(
           "Senha incorreta. A exclusão não foi realizada."
         );
-
         return;
       }
 
       if (
-        error?.code ===
-        "auth/too-many-requests"
+        error?.code === "auth/too-many-requests"
       ) {
         setErro(
           "Muitas tentativas. Aguarde alguns instantes antes de tentar novamente."
         );
-
         return;
       }
 
@@ -309,444 +315,197 @@ export default function Condominios() {
      PESQUISA
   ========================================================= */
 
-  const condominiosFiltrados =
-    useMemo(() => {
-      const termo =
-        busca.trim().toLowerCase();
+  const condominiosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
 
-      if (!termo) {
-        return condominios;
-      }
+    if (!termo) return condominios;
 
-      return condominios.filter(
-        (condominio) => {
-          const nome =
-            String(
-              condominio.nome || ""
-            ).toLowerCase();
+    return condominios.filter((condominio) => {
+      const campos = [
+        condominio.nome,
+        condominio.documento,
+        condominio.cidade,
+        condominio.estado,
+        condominio.bairro,
+        condominio.endereco,
+      ];
 
-          const documento =
-            String(
-              condominio.documento || ""
-            ).toLowerCase();
-
-          const cidade =
-            String(
-              condominio.cidade || ""
-            ).toLowerCase();
-
-          return (
-            nome.includes(termo) ||
-            documento.includes(termo) ||
-            cidade.includes(termo)
-          );
-        }
+      return campos.some((campo) =>
+        String(campo || "")
+          .toLowerCase()
+          .includes(termo)
       );
-    }, [condominios, busca]);
+    });
+  }, [condominios, busca]);
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
-    <div className="space-y-6">
+    <div className="morada-enter space-y-6">
+
       {/* =====================================================
-          CABEÇALHO
+          CABEÇALHO COM SUBTÍTULO
       ===================================================== */}
 
-      <section
+      <header
         className="
-          rounded-[30px]
-          border
-          border-white/10
-          bg-black/20
-          p-6
-          backdrop-blur-2xl
-          shadow-[0_20px_50px_rgba(0,0,0,0.18)]
-          sm:p-7
+          flex
+          flex-col
+          gap-5
+          px-1
+          pt-1
+          md:flex-row
+          md:items-center
+          md:justify-between
         "
       >
-        <div
-          className="
-            flex
-            flex-col
-            gap-5
-            md:flex-row
-            md:items-center
-            md:justify-between
-          "
-        >
-          <div>
-            <p
-              className="
-                text-sm
-                font-medium
-                text-[#B6D0BE]
-              "
-            >
-              Administração
-            </p>
-
-            <h1
-              className="
-                mt-2
-                text-3xl
-                font-bold
-                text-white
-                sm:text-4xl
-              "
-            >
-              Condomínios
-            </h1>
-
-            <p
-              className="
-                mt-3
-                max-w-2xl
-                text-sm
-                leading-6
-                text-white/70
-              "
-            >
-              Consulte e gerencie todos os
-              condomínios cadastrados na plataforma
-              Morada Oficial.
-            </p>
-          </div>
-
-          {/* =================================================
-              NOVO CONDOMÍNIO
-          ================================================= */}
-
-          <button
-            type="button"
-            onClick={abrirCadastro}
+        <div>
+          <h1
             className="
-              inline-flex
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              bg-[#89A58F]
-              px-5
-              py-3
-              text-sm
+              text-3xl
               font-semibold
-              text-white
-              shadow-[0_10px_25px_rgba(137,165,143,0.22)]
-              transition-all
-              duration-300
-              hover:bg-[#78967F]
-              active:scale-[0.98]
+              tracking-[-0.02em]
+              text-[#FFFFFF]
+              sm:text-4xl
             "
           >
-            <ClipboardPlus
-              className="h-4 w-4"
-              strokeWidth={1.8}
-            />
+            Condomínios
+          </h1>
 
-            Novo condomínio
-          </button>
+          <p
+            className="
+              mt-2
+              max-w-2xl
+              text-sm
+              leading-6
+              text-[#FFFFFF]
+            "
+          >
+            Gerencie os condomínios cadastrados e consulte
+            as informações de cada empreendimento.
+          </p>
         </div>
-      </section>
-
-      {/* =====================================================
-          BARRA DE NAVEGAÇÃO
-      ===================================================== */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          gap-3
-          sm:grid-cols-2
-        "
-      >
-        {/* ===================================================
-            CADASTRAR CONDOMÍNIO
-        =================================================== */}
 
         <button
           type="button"
           onClick={abrirCadastro}
-          className={`
-            flex
-            h-[48px]
-            min-h-[48px]
+          className="
+            inline-flex
+            min-h-[58px]
             items-center
+            justify-center
             gap-3
             rounded-xl
-            border
+            bg-[#6F9272]
             px-4
-            text-left
+            py-3
+            text-[14px]
+            font-semibold
+            text-[#FFFFFF]
+            shadow-[0_8px_22px_rgba(111,146,114,0.22)]
             transition-all
             duration-300
-
-            ${
-              abaAtiva === "cadastro"
-                ? `
-                    border-[#89A58F]
-                    bg-[#89A58F]
-                    text-white
-                    shadow-[0_6px_18px_rgba(137,165,143,0.18)]
-                  `
-                : `
-                    border-white/10
-                    bg-black/20
-                    text-white/85
-                    backdrop-blur-xl
-                    hover:bg-white/10
-                  `
-            }
-          `}
+            hover:bg-[#5C7D60]
+            active:scale-[0.98]
+          "
         >
-          <div
-            className={`
-              flex
-              h-7
-              w-7
-              shrink-0
-              items-center
-              justify-center
-              rounded-lg
+          <ClipboardPlus
+            className="h-[22px] w-[22px] shrink-0"
+            strokeWidth={1.8}
+          />
 
-              ${
-                abaAtiva === "cadastro"
-                  ? "bg-white/15"
-                  : "bg-white/10"
-              }
-            `}
-          >
-            <ClipboardPlus
-              className="h-4 w-4"
-              strokeWidth={1.8}
-            />
-          </div>
-
-          <div className="min-w-0">
-            <p
-              className="
-                truncate
-                text-[13px]
-                font-semibold
-              "
-            >
-              Cadastrar condomínio
-            </p>
-
-            <p
-              className="
-                truncate
-                text-[11px]
-                text-white/65
-              "
-            >
-              Novo cadastro
-            </p>
-          </div>
+          <span>Novo condomínio</span>
         </button>
-
-        {/* ===================================================
-            CONDOMÍNIOS CADASTRADOS
-        =================================================== */}
-
-        <button
-          type="button"
-          onClick={abrirLista}
-          className={`
-            flex
-            h-[48px]
-            min-h-[48px]
-            items-center
-            justify-between
-            gap-3
-            rounded-xl
-            border
-            px-4
-            text-left
-            transition-all
-            duration-300
-
-            ${
-              abaAtiva === "lista"
-                ? `
-                    border-[#89A58F]
-                    bg-[#89A58F]
-                    text-white
-                    shadow-[0_6px_18px_rgba(137,165,143,0.18)]
-                  `
-                : `
-                    border-white/10
-                    bg-black/20
-                    text-white/85
-                    backdrop-blur-xl
-                    hover:bg-white/10
-                  `
-            }
-          `}
-        >
-          <div
-            className="
-              flex
-              min-w-0
-              items-center
-              gap-3
-            "
-          >
-            <div
-              className={`
-                flex
-                h-7
-                w-7
-                shrink-0
-                items-center
-                justify-center
-                rounded-lg
-
-                ${
-                  abaAtiva === "lista"
-                    ? "bg-white/15"
-                    : "bg-white/10"
-                }
-              `}
-            >
-              <Building2
-                className="h-4 w-4"
-                strokeWidth={1.8}
-              />
-            </div>
-
-            <div className="min-w-0">
-              <p
-                className="
-                  truncate
-                  text-[13px]
-                  font-semibold
-                "
-              >
-                Condomínios cadastrados
-              </p>
-
-              <p
-                className="
-                  truncate
-                  text-[11px]
-                  text-white/65
-                "
-              >
-                Visualizar registros
-              </p>
-            </div>
-          </div>
-
-          <span
-            className={`
-              flex
-              h-7
-              min-w-[28px]
-              shrink-0
-              items-center
-              justify-center
-              rounded-full
-              px-2
-              text-xs
-              font-semibold
-
-              ${
-                abaAtiva === "lista"
-                  ? "bg-white/20 text-white"
-                  : "bg-white/10 text-white/80"
-              }
-            `}
-          >
-            {carregando
-              ? "--"
-              : condominios.length}
-          </span>
-        </button>
-      </div>
+      </header>
 
       {/* =====================================================
-          SUCESSO
+          MENSAGEM DE SUCESSO
       ===================================================== */}
 
       {sucesso && (
         <div
-          className="
+          className={`
+            ${CARD_GLASS}
             flex
             items-center
             justify-between
             gap-4
-            rounded-xl
-            border
-            border-[#89A58F]/30
-            bg-[#89A58F]/20
-            px-4
-            py-3
-            text-sm
-            font-semibold
-            text-[#D7F0DE]
-            backdrop-blur-xl
-          "
+            px-5
+            py-4
+          `}
         >
-          <span>{sucesso}</span>
+          <p className="text-sm font-semibold text-[#FFFFFF]">
+            {sucesso}
+          </p>
 
           <button
             type="button"
             onClick={() => setSucesso("")}
+            aria-label="Fechar mensagem"
             className="
-              rounded-lg
-              p-1
+              flex
+              h-9
+              w-9
+              shrink-0
+              items-center
+              justify-center
+              rounded-xl
+              text-[#FFFFFF]
               transition-all
               hover:bg-white/10
             "
-            aria-label="Fechar mensagem"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
       )}
 
       {/* =====================================================
-          ERRO
+          MENSAGEM DE ERRO
       ===================================================== */}
 
-      {erro &&
-        !condominioParaExcluir && (
-          <div
+      {erro && !condominioParaExcluir && (
+        <div
+          className={`
+            ${CARD_GLASS}
+            flex
+            items-center
+            justify-between
+            gap-4
+            px-5
+            py-4
+          `}
+        >
+          <p className="text-sm font-semibold text-[#FFFFFF]">
+            {erro}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setErro("")}
+            aria-label="Fechar mensagem"
             className="
               flex
+              h-9
+              w-9
+              shrink-0
               items-center
-              justify-between
-              gap-4
+              justify-center
               rounded-xl
-              border
-              border-red-300/20
-              bg-red-500/10
-              px-4
-              py-3
-              text-sm
-              font-semibold
-              text-red-100
-              backdrop-blur-xl
+              text-[#FFFFFF]
+              transition-all
+              hover:bg-white/10
             "
           >
-            <span>{erro}</span>
-
-            <button
-              type="button"
-              onClick={() => setErro("")}
-              className="
-                rounded-lg
-                p-1
-                transition-all
-                hover:bg-white/10
-              "
-              aria-label="Fechar mensagem"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
 
       {/* =====================================================
-          CADASTRO
+          FORMULÁRIO
       ===================================================== */}
 
       {abaAtiva === "cadastro" && (
@@ -759,191 +518,187 @@ export default function Condominios() {
       )}
 
       {/* =====================================================
-          LISTA
+          LISTA DE CONDOMÍNIOS
       ===================================================== */}
 
       {abaAtiva === "lista" && (
-        <section
-          className="
-            rounded-[30px]
-            border
-            border-white/10
-            bg-black/20
-            p-6
-            backdrop-blur-2xl
-            shadow-[0_20px_50px_rgba(0,0,0,0.15)]
-            sm:p-7
-          "
-        >
-          <div
-            className="
-              flex
-              flex-col
-              gap-5
-              md:flex-row
-              md:items-center
-              md:justify-between
-            "
+        <>
+          {/* BARRA DE PESQUISA */}
+
+          <div className="relative">
+            <Search
+              className="
+                pointer-events-none
+                absolute
+                left-4
+                top-1/2
+                z-10
+                h-5
+                w-5
+                -translate-y-1/2
+                text-[#FFFFFF]
+              "
+              strokeWidth={1.8}
+            />
+
+            <input
+              type="text"
+              value={busca}
+              onChange={(event) =>
+                setBusca(event.target.value)
+              }
+              placeholder="Buscar condomínio..."
+              aria-label="Buscar condomínio"
+              className="
+                h-12
+                w-full
+                rounded-full
+                border
+                border-white/15
+                bg-white/20
+                py-2
+                pl-12
+                pr-5
+                text-[14px]
+                text-[#FFFFFF]
+                backdrop-blur-2xl
+                outline-none
+                transition-all
+                placeholder:text-white/80
+                focus:border-[#6F9272]
+                focus:bg-white/25
+                focus:ring-2
+                focus:ring-[#6F9272]/30
+              "
+            />
+          </div>
+
+          {/* PAINEL PRINCIPAL */}
+
+          <section
+            className={`
+              ${CARD_GLASS}
+              overflow-hidden
+              p-5
+              sm:p-7
+            `}
           >
-            <div>
+            <div className="mb-5">
               <h2
                 className="
                   text-xl
                   font-semibold
-                  text-white
+                  text-[#FFFFFF]
                   sm:text-2xl
                 "
               >
                 Condomínios cadastrados
               </h2>
 
-              <p
-                className="
-                  mt-1
-                  text-sm
-                  text-white/65
-                "
-              >
-                Visualize, edite ou exclua um
-                condomínio.
+              <p className="mt-1 text-sm text-[#FFFFFF]">
+                Selecione a seta para consultar os dados de um condomínio.
               </p>
             </div>
 
-            {condominios.length > 0 && (
-              <div
-                className="
-                  relative
-                  w-full
-                  md:w-80
-                "
-              >
-                <Search
-                  className="
-                    absolute
-                    left-4
-                    top-1/2
-                    h-4
-                    w-4
-                    -translate-y-1/2
-                    text-white/45
-                  "
-                  strokeWidth={1.8}
-                />
+            {/* CARREGANDO */}
 
-                <input
-                  type="text"
-                  value={busca}
-                  onChange={(event) =>
-                    setBusca(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Buscar condomínio..."
-                  className="
-                    w-full
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-white/10
-                    py-3
-                    pl-11
-                    pr-4
-                    text-sm
-                    text-white
-                    backdrop-blur-xl
-                    outline-none
-                    transition-all
-                    placeholder:text-white/45
-                    focus:border-[#89A58F]/60
-                    focus:bg-white/15
-                    focus:ring-2
-                    focus:ring-[#89A58F]/20
-                  "
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8">
-            {carregando ? (
-              <div
-                className="
-                  py-12
-                  text-center
-                  text-sm
-                  text-white/65
-                "
-              >
-                Carregando condomínios...
-              </div>
-            ) : condominios.length === 0 ? (
-              <EmptyState
-                titulo="Nenhum condomínio cadastrado"
-                descricao="Ainda não existe nenhum condomínio cadastrado na plataforma."
-                textoBotao="Cadastrar condomínio"
-                onAction={abrirCadastro}
-              />
-            ) : condominiosFiltrados.length === 0 ? (
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-white/10
-                  bg-white/5
-                  p-10
-                  text-center
-                  backdrop-blur-xl
-                "
-              >
-                <Search
-                  className="
-                    mx-auto
-                    h-8
-                    w-8
-                    text-white/40
-                  "
-                  strokeWidth={1.8}
-                />
-
-                <h3
-                  className="
-                    mt-4
-                    font-semibold
-                    text-white
-                "
-                >
-                  Nenhum resultado encontrado
-                </h3>
-
-                <p
-                  className="
-                    mt-2
-                    text-sm
-                    text-white/60
-                  "
-                >
-                  Tente pesquisar pelo nome,
-                  documento ou cidade.
+            {carregando && (
+              <div className="border-t border-white/15 py-10 text-center">
+                <p className="text-sm text-[#FFFFFF]">
+                  Carregando condomínios...
                 </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {condominiosFiltrados.map(
-                  (condominio) => (
-                    <CondominioCard
+            )}
+
+            {/* LISTA VAZIA */}
+
+            {!carregando &&
+              condominios.length === 0 && (
+                <div className="border-t border-white/15 py-10 text-center">
+                  <Building2
+                    className="mx-auto h-8 w-8 text-[#FFFFFF]"
+                    strokeWidth={1.6}
+                  />
+
+                  <h3 className="mt-4 text-lg font-semibold text-[#FFFFFF]">
+                    Nenhum condomínio cadastrado
+                  </h3>
+
+                  <p className="mt-2 text-sm text-[#FFFFFF]">
+                    Cadastre o primeiro condomínio para começar a organizar a plataforma.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={abrirCadastro}
+                    className="
+                      mt-5
+                      inline-flex
+                      min-h-[58px]
+                      items-center
+                      justify-center
+                      gap-3
+                      rounded-xl
+                      bg-[#6F9272]
+                      px-4
+                      py-3
+                      text-[14px]
+                      font-semibold
+                      text-[#FFFFFF]
+                      transition-all
+                      hover:bg-[#5C7D60]
+                    "
+                  >
+                    <ClipboardPlus className="h-[22px] w-[22px]" />
+                    Cadastrar condomínio
+                  </button>
+                </div>
+              )}
+
+            {/* PESQUISA SEM RESULTADOS */}
+
+            {!carregando &&
+              condominios.length > 0 &&
+              condominiosFiltrados.length === 0 && (
+                <div className="border-t border-white/15 py-10 text-center">
+                  <Search
+                    className="mx-auto h-8 w-8 text-[#FFFFFF]"
+                    strokeWidth={1.8}
+                  />
+
+                  <h3 className="mt-4 font-semibold text-[#FFFFFF]">
+                    Nenhum resultado encontrado
+                  </h3>
+
+                  <p className="mt-2 text-sm text-[#FFFFFF]">
+                    Tente pesquisar pelo nome, documento, endereço ou cidade.
+                  </p>
+                </div>
+              )}
+
+            {/* LINHAS DOS CONDOMÍNIOS */}
+
+            {!carregando &&
+              condominiosFiltrados.length > 0 && (
+                <div className="border-t border-white/15">
+                  {condominiosFiltrados.map((condominio) => (
+                    <CondominioLinha
                       key={condominio.id}
                       condominio={condominio}
-                      onEditar={abrirEdicao}
-                      onExcluir={
-                        abrirConfirmacaoExclusao
+                      expandido={
+                        condominioAberto === condominio.id
                       }
+                      onAlternar={() =>
+                        alternarCondominio(condominio.id)
+                      }
+                      onEditar={abrirEdicao}
+                      onExcluir={abrirConfirmacaoExclusao}
                     />
-                  )
-                )}
-              </div>
-            )}
-          </div>
-        </section>
+                  ))}
+                </div>
+              )}
+          </section>
+        </>
       )}
 
       {/* =====================================================
@@ -959,87 +714,49 @@ export default function Condominios() {
             flex
             items-center
             justify-center
-            bg-black/50
+            bg-black/45
             px-5
+            py-6
             backdrop-blur-sm
           "
           onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+            if (event.target === event.currentTarget) {
               fecharConfirmacaoExclusao();
             }
           }}
         >
           <div
-            className="
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-exclusao-condominio"
+            className={`
+              ${CARD_GLASS}
               w-full
               max-w-md
-              rounded-[30px]
-              border
-              border-white/10
-              bg-black/30
-              p-7
-              backdrop-blur-2xl
-              shadow-[0_20px_60px_rgba(0,0,0,0.45)]
-            "
+              p-6
+              sm:p-7
+            `}
           >
-            <div
-              className="
-                flex
-                items-start
-                gap-4
-              "
-            >
-              <div
-                className="
-                  flex
-                  h-12
-                  w-12
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  border
-                  border-[#89A58F]/30
-                  bg-[#89A58F]/15
-                  text-[#B9D4BC]
-                "
-              >
-                <LockKeyhole
-                  className="h-5 w-5"
-                  strokeWidth={1.8}
-                />
-              </div>
+            <div className="flex items-start gap-4">
+              <LockKeyhole
+                className="h-7 w-7 shrink-0 text-[#FFFFFF]"
+                strokeWidth={1.8}
+              />
 
               <div className="min-w-0">
                 <h2
-                  className="
-                    text-xl
-                    font-bold
-                    text-white
-                  "
+                  id="titulo-exclusao-condominio"
+                  className="text-xl font-semibold text-[#FFFFFF]"
                 >
                   Confirmar exclusão
                 </h2>
 
-                <p
-                  className="
-                    mt-2
-                    text-sm
-                    leading-6
-                    text-white/70
-                  "
-                >
+                <p className="mt-2 text-sm leading-6 text-[#FFFFFF]">
                   Para excluir{" "}
-                  <strong className="text-white">
-                    {
-                      condominioParaExcluir.nome
-                    }
+                  <strong className="text-[#FFFFFF]">
+                    {condominioParaExcluir.nome}
                   </strong>
-                  , confirme sua senha de Super
-                  Admin.
+                  , confirme sua senha de Super Admin.
                 </p>
               </div>
             </div>
@@ -1047,13 +764,7 @@ export default function Condominios() {
             <div className="mt-6">
               <label
                 htmlFor="senha-exclusao"
-                className="
-                  mb-2
-                  block
-                  text-sm
-                  font-semibold
-                  text-white/85
-                "
+                className="mb-2 block text-sm font-semibold text-[#FFFFFF]"
               >
                 Senha
               </label>
@@ -1063,9 +774,7 @@ export default function Condominios() {
                 type="password"
                 value={senhaExclusao}
                 onChange={(event) =>
-                  setSenhaExclusao(
-                    event.target.value
-                  )
+                  setSenhaExclusao(event.target.value)
                 }
                 placeholder="Digite sua senha"
                 autoFocus
@@ -1074,72 +783,50 @@ export default function Condominios() {
                   w-full
                   rounded-2xl
                   border
-                  border-white/10
+                  border-white/15
                   bg-white/10
                   px-4
                   py-3
                   text-sm
-                  text-white
-                  backdrop-blur-xl
+                  text-[#FFFFFF]
                   outline-none
                   transition-all
-                  placeholder:text-white/40
-                  focus:border-[#89A58F]/60
-                  focus:bg-white/15
+                  placeholder:text-white/80
+                  focus:border-[#6F9272]
                   focus:ring-2
-                  focus:ring-[#89A58F]/20
-                  disabled:cursor-not-allowed
+                  focus:ring-[#6F9272]/30
                   disabled:opacity-60
                 "
               />
             </div>
 
             {erro && (
-              <div
-                className="
-                  mt-4
-                  rounded-xl
-                  border
-                  border-red-300/20
-                  bg-red-500/10
-                  px-4
-                  py-3
-                  text-sm
-                  text-red-100
-                  backdrop-blur-xl
-                "
-              >
+              <p role="alert" className="mt-4 text-sm text-[#FFFFFF]">
                 {erro}
-              </div>
+              </p>
             )}
 
-            <div
-              className="
-                mt-7
-                flex
-                flex-col-reverse
-                gap-3
-                sm:flex-row
-                sm:justify-end
-              "
-            >
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={
-                  fecharConfirmacaoExclusao
-                }
+                onClick={fecharConfirmacaoExclusao}
                 disabled={excluindo}
                 className="
+                  inline-flex
+                  min-h-[58px]
+                  items-center
+                  justify-center
                   rounded-xl
-                  px-5
+                  border
+                  border-white/20
+                  bg-white/10
+                  px-4
                   py-3
-                  text-sm
+                  text-[14px]
                   font-semibold
-                  text-white/70
+                  text-[#FFFFFF]
                   transition-all
-                  hover:bg-white/10
-                  hover:text-white
-                  disabled:cursor-not-allowed
+                  hover:bg-white/15
                   disabled:opacity-50
                 "
               >
@@ -1151,29 +838,24 @@ export default function Condominios() {
                 onClick={confirmarExclusao}
                 disabled={excluindo}
                 className="
-                  flex
+                  inline-flex
+                  min-h-[58px]
                   items-center
                   justify-center
-                  gap-2
+                  gap-3
                   rounded-xl
-                  bg-[#89A58F]
-                  px-5
+                  bg-[#6F9272]
+                  px-4
                   py-3
-                  text-sm
+                  text-[14px]
                   font-semibold
-                  text-white
+                  text-[#FFFFFF]
                   transition-all
-                  duration-300
-                  hover:bg-[#78967F]
-                  active:scale-[0.98]
-                  disabled:cursor-not-allowed
+                  hover:bg-[#5C7D60]
                   disabled:opacity-60
                 "
               >
-                <Trash2
-                  className="h-4 w-4"
-                  strokeWidth={1.8}
-                />
+                <Trash2 className="h-[22px] w-[22px]" />
 
                 {excluindo
                   ? "Excluindo..."
@@ -1184,5 +866,493 @@ export default function Condominios() {
         </div>
       )}
     </div>
+  );
+}
+
+/* =========================================================
+   LINHA EXPANSÍVEL DO CONDOMÍNIO
+========================================================= */
+
+function CondominioLinha({
+  condominio,
+  expandido,
+  onAlternar,
+  onEditar,
+  onExcluir,
+}) {
+  const enderecoLinha = [
+    condominio.endereco,
+    condominio.numero
+      ? `nº ${condominio.numero}`
+      : "",
+    condominio.cidade,
+    condominio.estado,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const enderecoCompleto = [
+    condominio.endereco,
+    condominio.numero
+      ? `nº ${condominio.numero}`
+      : "",
+    condominio.complemento,
+    condominio.bairro,
+    condominio.cidade,
+    condominio.estado,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const areasComuns = Array.isArray(condominio.areasComuns)
+    ? condominio.areasComuns
+    : [];
+
+  const documentoFormatado =
+    formatarDocumento(condominio.documento);
+
+  const telefoneFormatado =
+    formatarTelefone(condominio.telefone);
+
+  const cepFormatado =
+    formatarCEP(condominio.cep);
+
+  return (
+    <div className="border-b border-white/15 last:border-b-0">
+
+      {/* ===================================================
+          LINHA PRINCIPAL
+      =================================================== */}
+
+      <div
+        className="
+          flex
+          min-h-[72px]
+          items-center
+          gap-3
+          py-3
+          sm:gap-5
+        "
+      >
+        <div className="min-w-0 flex-1">
+          <p
+            className="
+              break-words
+              text-base
+              font-semibold
+              leading-6
+              text-[#FFFFFF]
+              sm:text-lg
+            "
+          >
+            {condominio.nome || "Condomínio sem nome"}
+          </p>
+
+          {/* ENDEREÇO RESUMIDO SÓ QUANDO FECHADO */}
+
+          {!expandido && (
+            <p
+              className="
+                mt-1
+                break-words
+                text-xs
+                leading-5
+                text-[#FFFFFF]
+                sm:text-[13px]
+              "
+            >
+              {enderecoLinha || "Endereço não informado"}
+            </p>
+          )}
+        </div>
+
+        {/* STATUS */}
+
+        <span
+          className={`
+            shrink-0
+            rounded-full
+            border
+            px-3
+            py-1.5
+            text-xs
+            font-semibold
+            text-[#FFFFFF]
+            ${
+              condominio.ativo
+                ? "border-[#6F9272] bg-[#6F9272]"
+                : "border-white/25 bg-white/10"
+            }
+          `}
+        >
+          {condominio.ativo ? "Ativo" : "Inativo"}
+        </span>
+
+        {/* SETA */}
+
+        <button
+          type="button"
+          onClick={onAlternar}
+          aria-expanded={expandido}
+          aria-label={
+            expandido
+              ? `Recolher ${condominio.nome}`
+              : `Ver resumo de ${condominio.nome}`
+          }
+          className="
+            flex
+            h-10
+            w-10
+            shrink-0
+            items-center
+            justify-center
+            rounded-xl
+            text-[#FFFFFF]
+            transition-all
+            duration-300
+            hover:bg-white/10
+          "
+        >
+          <ChevronDown
+            className={`
+              h-5
+              w-5
+              transition-transform
+              duration-300
+              ${expandido ? "rotate-180" : ""}
+            `}
+            strokeWidth={1.8}
+          />
+        </button>
+      </div>
+
+      {/* ===================================================
+          RESUMO EXPANSÍVEL
+          O endereço completo aparece aqui uma única vez.
+      =================================================== */}
+
+      {expandido && (
+        <div className="space-y-5 pb-5 pt-2">
+
+          {/* CPF / CNPJ */}
+
+          {documentoFormatado && (
+            <InfoLinha
+              label="CPF / CNPJ"
+              valor={documentoFormatado}
+            />
+          )}
+
+          {/* ENDEREÇO COMPLETO ABAIXO DO DOCUMENTO */}
+
+          {enderecoCompleto && (
+            <div className="flex items-start gap-3">
+              <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#FFFFFF]" />
+
+              <div className="min-w-0">
+                <p className="text-xs text-[#FFFFFF]">
+                  Endereço completo
+                </p>
+
+                <p className="mt-1 break-words text-sm text-[#FFFFFF]">
+                  {enderecoCompleto}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* CEP E PAÍS */}
+
+          {(cepFormatado || condominio.pais) && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              {cepFormatado && (
+                <InfoLinha
+                  label="CEP"
+                  valor={cepFormatado}
+                />
+              )}
+
+              {condominio.pais && (
+                <InfoLinha
+                  label="País"
+                  valor={condominio.pais}
+                />
+              )}
+            </div>
+          )}
+
+          {/* CONTATO */}
+
+          {(telefoneFormatado || condominio.email) && (
+            <div className="flex flex-wrap gap-x-6 gap-y-4">
+              {telefoneFormatado && (
+                <div className="flex items-start gap-3">
+                  <Phone className="mt-0.5 h-5 w-5 shrink-0 text-[#FFFFFF]" />
+
+                  <div>
+                    <p className="text-xs text-[#FFFFFF]">
+                      Telefone
+                    </p>
+
+                    <p className="mt-1 text-sm text-[#FFFFFF]">
+                      {telefoneFormatado}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {condominio.email && (
+                <div className="flex items-start gap-3">
+                  <Mail className="mt-0.5 h-5 w-5 shrink-0 text-[#FFFFFF]" />
+
+                  <div className="min-w-0">
+                    <p className="text-xs text-[#FFFFFF]">
+                      E-mail
+                    </p>
+
+                    <p className="mt-1 break-all text-sm text-[#FFFFFF]">
+                      {condominio.email}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ESTRUTURA */}
+
+          <div
+            className="
+              flex
+              flex-wrap
+              items-center
+              gap-x-6
+              gap-y-3
+              border-y
+              border-white/15
+              py-4
+            "
+          >
+            <ResumoNumero
+              icon={<Building2 className="h-5 w-5" />}
+              label="Blocos"
+              valor={condominio.blocos || 0}
+            />
+
+            <ResumoNumero
+              icon={<Home className="h-5 w-5" />}
+              label="Apartamentos"
+              valor={condominio.apartamentos || 0}
+            />
+
+            <ResumoNumero
+              icon={<Car className="h-5 w-5" />}
+              label="Vagas de garagem"
+              valor={condominio.vagasGaragem || 0}
+            />
+
+            <ResumoNumero
+              icon={<Car className="h-5 w-5" />}
+              label="Vagas de visitantes"
+              valor={condominio.vagasVisitantes || 0}
+            />
+          </div>
+
+          {/* ÁREAS COMUNS */}
+
+          {areasComuns.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#FFFFFF]">
+                Áreas comuns
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {areasComuns.map((area) => (
+                  <span
+                    key={area}
+                    className="
+                      rounded-full
+                      border
+                      border-white/15
+                      bg-white/10
+                      px-3
+                      py-1.5
+                      text-xs
+                      font-medium
+                      text-[#FFFFFF]
+                    "
+                  >
+                    {area}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AÇÕES */}
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/15 pt-4">
+            <button
+              type="button"
+              onClick={() => onEditar(condominio)}
+              className="
+                inline-flex
+                min-h-[58px]
+                items-center
+                justify-center
+                gap-3
+                rounded-xl
+                border
+                border-white/20
+                bg-white/10
+                px-4
+                py-3
+                text-[14px]
+                font-semibold
+                text-[#FFFFFF]
+                transition-all
+                hover:bg-white/15
+              "
+            >
+              <Pencil className="h-[20px] w-[20px]" />
+              Editar
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onExcluir(condominio)}
+              className="
+                inline-flex
+                min-h-[58px]
+                items-center
+                justify-center
+                gap-3
+                rounded-xl
+                bg-[#6F9272]
+                px-4
+                py-3
+                text-[14px]
+                font-semibold
+                text-[#FFFFFF]
+                transition-all
+                hover:bg-[#5C7D60]
+              "
+            >
+              <Trash2 className="h-[20px] w-[20px]" />
+              Excluir
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   INFORMAÇÃO SIMPLES
+========================================================= */
+
+function InfoLinha({ label, valor }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-[#FFFFFF]">
+        {label}
+      </p>
+
+      <p className="mt-1 break-words text-sm text-[#FFFFFF]">
+        {valor}
+      </p>
+    </div>
+  );
+}
+
+/* =========================================================
+   INDICADOR DE ESTRUTURA
+========================================================= */
+
+function ResumoNumero({ icon, label, valor }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-[#FFFFFF]">
+        {icon}
+      </span>
+
+      <span className="text-sm font-semibold text-[#FFFFFF]">
+        {valor}
+      </span>
+
+      <span className="text-sm text-[#FFFFFF]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* =========================================================
+   FORMATAÇÃO DE DOCUMENTO
+========================================================= */
+
+function somenteNumeros(valor = "") {
+  return String(valor).replace(/\D/g, "");
+}
+
+function formatarDocumento(valor = "") {
+  const numeros = somenteNumeros(valor);
+
+  if (!numeros) return "";
+
+  if (numeros.length === 11) {
+    return numeros.replace(
+      /(\d{3})(\d{3})(\d{3})(\d{2})/,
+      "$1.$2.$3-$4"
+    );
+  }
+
+  if (numeros.length === 14) {
+    return numeros.replace(
+      /(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,
+      "$1.$2.$3/$4-$5"
+    );
+  }
+
+  return valor;
+}
+
+/* =========================================================
+   FORMATAÇÃO DE TELEFONE
+========================================================= */
+
+function formatarTelefone(valor = "") {
+  const numeros = somenteNumeros(valor);
+
+  if (numeros.length === 10) {
+    return numeros.replace(
+      /(\d{2})(\d{4})(\d{4})/,
+      "($1) $2-$3"
+    );
+  }
+
+  if (numeros.length === 11) {
+    return numeros.replace(
+      /(\d{2})(\d{5})(\d{4})/,
+      "($1) $2-$3"
+    );
+  }
+
+  return valor;
+}
+
+/* =========================================================
+   FORMATAÇÃO DE CEP
+========================================================= */
+
+function formatarCEP(valor = "") {
+  const numeros = somenteNumeros(valor);
+
+  if (numeros.length !== 8) return valor;
+
+  return numeros.replace(
+    /(\d{5})(\d{3})/,
+    "$1-$2"
   );
 }

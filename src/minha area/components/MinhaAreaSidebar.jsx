@@ -61,15 +61,15 @@ export default function MinhaAreaSidebar() {
         overflow-hidden
         rounded-[28px]
         border
-        border-white/10
-        bg-black/20
+        border-white/15
+        bg-white/20
         backdrop-blur-2xl
-        shadow-[0_12px_35px_rgba(20,20,20,0.28)]
+        shadow-[0_18px_50px_rgba(20,30,25,0.12)]
         lg:flex
       "
     >
       {/* =====================================================
-          BRILHO INTERNO (igual Login)
+          EFEITO DE VIDRO
       ===================================================== */}
 
       <div
@@ -78,9 +78,9 @@ export default function MinhaAreaSidebar() {
           absolute
           inset-0
           bg-gradient-to-b
-          from-white/10
-          via-transparent
-          to-black/20
+          from-white/[0.10]
+          via-white/[0.04]
+          to-white/[0.02]
         "
       />
 
@@ -95,8 +95,8 @@ export default function MinhaAreaSidebar() {
           flex
           justify-center
           px-4
-          pt-7
-          pb-5
+          pt-5
+          pb-7
         "
       >
         <img
@@ -104,15 +104,12 @@ export default function MinhaAreaSidebar() {
           alt="Morada Oficial"
           className="
             w-full
-            max-w-[210px]
+            max-w-[235px]
             object-contain
-            drop-shadow-[0_8px_22px_rgba(0,0,0,0.35)]
+            drop-shadow-[0_8px_22px_rgba(0,0,0,0.20)]
           "
         />
       </div>
-
-      {/* Linha divisória */}
-      <div className="mx-5 border-t border-white/10" />
 
       {/* =====================================================
           MENU
@@ -121,7 +118,6 @@ export default function MinhaAreaSidebar() {
       <nav
         className="
           relative
-          mt-4
           flex-1
           space-y-2
           overflow-y-auto
@@ -142,53 +138,49 @@ export default function MinhaAreaSidebar() {
                   ? `
                     flex
                     items-center
-                    gap-3
+                    gap-4
                     rounded-xl
-                    bg-[#89A58F]
+                    bg-[#6F9272]
                     px-4
-                    py-2.5
-                    text-[13px]
+                    py-3
+                    text-[14px]
                     font-semibold
-                    text-white
+                    text-[#FFFFFF]
+                    shadow-[0_8px_22px_rgba(111,146,114,0.22)]
                     transition-all
                     duration-300
-                    shadow-[0_6px_18px_rgba(137,165,143,0.18)]
+                    hover:bg-[#5C7D60]
                   `
                   : `
                     flex
                     items-center
-                    gap-3
+                    gap-4
                     rounded-xl
                     px-4
-                    py-2.5
-                    text-[13px]
+                    py-3
+                    text-[14px]
                     font-medium
-                    text-white/85
+                    text-[#FFFFFF]
                     transition-all
                     duration-300
-                    hover:bg-white/10
-                    hover:text-white
+                    hover:bg-white/[0.09]
+                    hover:text-[#FFFFFF]
                   `
               }
             >
-              <div
+              <Icon
                 className="
-                  flex
-                  h-7
-                  w-7
-                  items-center
-                  justify-center
-                  rounded-lg
-                  bg-white/10
+                  h-[22px]
+                  w-[22px]
+                  shrink-0
+                  text-[#FFFFFF]
                 "
-              >
-                <Icon
-                  className="h-4 w-4"
-                  strokeWidth={1.8}
-                />
-              </div>
+                strokeWidth={1.8}
+              />
 
-              <span>{item.label}</span>
+              <span className="text-[#FFFFFF]">
+                {item.label}
+              </span>
             </NavLink>
           );
         })}
@@ -202,8 +194,6 @@ export default function MinhaAreaSidebar() {
         className="
           relative
           shrink-0
-          border-t
-          border-white/10
           px-4
           py-5
         "
@@ -218,24 +208,31 @@ export default function MinhaAreaSidebar() {
             justify-center
             gap-2
             rounded-xl
-            bg-[#89A58F]
+            bg-[#6F9272]
             px-4
-            py-2.5
-            text-[13px]
+            py-3
+            text-[14px]
             font-semibold
-            text-white
+            text-[#FFFFFF]
+            shadow-[0_8px_22px_rgba(111,146,114,0.20)]
             transition-all
             duration-300
-            hover:bg-[#78967F]
+            hover:bg-[#5C7D60]
             active:scale-[0.98]
           "
         >
           <LogOut
-            className="h-4 w-4"
+            className="
+              h-[20px]
+              w-[20px]
+              text-[#FFFFFF]
+            "
             strokeWidth={1.8}
           />
 
-          <span>Sair</span>
+          <span className="text-[#FFFFFF]">
+            Sair
+          </span>
         </button>
       </div>
     </aside>

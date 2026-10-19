@@ -8,6 +8,13 @@ import {
 } from "lucide-react";
 
 /* ======================================================
+   PADRÃO VISUAL MORADA OFICIAL
+====================================================== */
+
+const VERDE = "#6F9272";
+const VERDE_HOVER = "#5C7D60";
+
+/* ======================================================
    ÁREAS COMUNS
 ====================================================== */
 
@@ -29,6 +36,7 @@ const FORMULARIO_INICIAL = {
   documento: "",
   telefone: "",
   email: "",
+  emailResponsavelAdmin: "",
 
   cep: "",
   endereco: "",
@@ -59,13 +67,18 @@ export default function CondominioForm({
 
   useEffect(() => {
     if (!initialData) {
-      setDados(FORMULARIO_INICIAL);
+      setDados({
+        ...FORMULARIO_INICIAL,
+        areasComuns: [],
+      });
       return;
     }
 
     setDados({
       ...FORMULARIO_INICIAL,
       ...initialData,
+      emailResponsavelAdmin:
+        initialData.emailResponsavelAdmin || "",
       areasComuns: Array.isArray(initialData.areasComuns)
         ? initialData.areasComuns
         : [],
@@ -134,6 +147,10 @@ export default function CondominioForm({
         `https://viacep.com.br/ws/${cep}/json/`
       );
 
+      if (!resposta.ok) {
+        throw new Error("Não foi possível consultar o CEP.");
+      }
+
       const endereco = await resposta.json();
 
       if (endereco.erro) return;
@@ -162,17 +179,26 @@ export default function CondominioForm({
 
     let novoValor = value;
 
-    if (name === "cep") novoValor = mascararCEP(value);
-    if (name === "telefone") novoValor = mascararTelefone(value);
-    if (name === "documento") novoValor = mascararDocumento(value);
+    if (name === "cep") {
+      novoValor = mascararCEP(value);
+    }
+
+    if (name === "telefone") {
+      novoValor = mascararTelefone(value);
+    }
+
+    if (name === "documento") {
+      novoValor = mascararDocumento(value);
+    }
 
     setDados((atual) => ({
       ...atual,
-      [name]:
-        type === "checkbox" ? checked : novoValor,
+      [name]: type === "checkbox" ? checked : novoValor,
     }));
 
-    if (name === "cep") buscarCEP(novoValor);
+    if (name === "cep") {
+      buscarCEP(novoValor);
+    }
   }
 
   /* ======================================================
@@ -201,6 +227,12 @@ export default function CondominioForm({
 
     onSubmit?.({
       ...dados,
+      email: String(dados.email || "").trim().toLowerCase(),
+      emailResponsavelAdmin: String(
+        dados.emailResponsavelAdmin || ""
+      )
+        .trim()
+        .toLowerCase(),
       cep: dados.cep.replace(/\D/g, ""),
       telefone: dados.telefone.replace(/\D/g, ""),
       documento: dados.documento.replace(/\D/g, ""),
@@ -219,37 +251,39 @@ export default function CondominioForm({
       className="
         relative
         overflow-hidden
-        rounded-[32px]
-        border
-        border-white/10
-        bg-black/20
-        backdrop-blur-2xl
-        shadow-[0_20px_60px_rgba(0,0,0,0.30)]
+        rounded-3xl
+        border border-white/15
+        bg-white/20
         p-6
+        shadow-[0_10px_35px_rgba(20,30,25,0.12)]
+        backdrop-blur-2xl
         lg:p-8
       "
     >
-      {/* brilho interno */}
+      {/* =====================================================
+          EFEITO GLASS
+      ===================================================== */}
+
       <div
         className="
-          absolute inset-0
           pointer-events-none
+          absolute inset-0
           bg-gradient-to-br
-          from-white/10
-          via-transparent
-          to-black/20
+          from-white/[0.10]
+          via-white/[0.04]
+          to-white/[0.02]
         "
       />
 
       <div className="relative z-10 space-y-8">
 
-        {/* ======================================================
+        {/* =====================================================
             DADOS DO CONDOMÍNIO
-        ====================================================== */}
+        ===================================================== */}
 
         <section>
           <SectionHeader
-            icon={<Building2 className="h-5 w-5" />}
+            icon={<Building2 />}
             title={
               modoEdicao
                 ? "Editar condomínio"
@@ -283,22 +317,40 @@ export default function CondominioForm({
             />
 
             <Input
-              label="E-mail"
+              label="E-mail do condomínio"
               name="email"
               type="email"
               value={dados.email}
               onChange={alterarCampo}
+              placeholder="contato@condominio.com.br"
             />
+
+            <div className="md:col-span-2">
+              <Input
+                label="E-mail do responsável administrativo"
+                name="emailResponsavelAdmin"
+                type="email"
+                value={dados.emailResponsavelAdmin}
+                onChange={alterarCampo}
+                placeholder="responsavel@exemplo.com"
+                required
+              />
+
+              <p className="mt-2 text-xs leading-5 text-white/80">
+                Este endereço será utilizado para configurar o acesso administrativo.
+                Ele pode ser diferente do e-mail geral do condomínio.
+              </p>
+            </div>
           </div>
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             LOCALIZAÇÃO
-        ====================================================== */}
+        ===================================================== */}
 
-        <section className="border-t border-white/10 pt-8">
+        <section className="border-t border-white/15 pt-8">
           <SectionHeader
-            icon={<MapPin className="h-5 w-5" />}
+            icon={<MapPin />}
             title="Localização"
           />
 
@@ -363,13 +415,13 @@ export default function CondominioForm({
           </div>
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             ESTRUTURA
-        ====================================================== */}
+        ===================================================== */}
 
-        <section className="border-t border-white/10 pt-8">
+        <section className="border-t border-white/15 pt-8">
           <SectionHeader
-            icon={<Home className="h-5 w-5" />}
+            icon={<Home />}
             title="Estrutura"
           />
 
@@ -408,13 +460,13 @@ export default function CondominioForm({
           </div>
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             ÁREAS COMUNS
-        ====================================================== */}
+        ===================================================== */}
 
-        <section className="border-t border-white/10 pt-8">
+        <section className="border-t border-white/15 pt-8">
           <SectionHeader
-            icon={<Car className="h-5 w-5" />}
+            icon={<Car />}
             title="Áreas comuns"
           />
 
@@ -426,11 +478,15 @@ export default function CondominioForm({
                 <label
                   key={area}
                   className={`
-                    flex items-center gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition-all duration-300 backdrop-blur-xl
+                    flex cursor-pointer items-center gap-3
+                    rounded-xl border px-4 py-3
+                    text-[14px] text-[#FFFFFF]
+                    backdrop-blur-xl
+                    transition-all duration-300
                     ${
                       ativa
-                        ? "border-[#89A58F]/40 bg-[#89A58F]/20 text-white"
-                        : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
+                        ? "border-[#6F9272] bg-[#6F9272] font-semibold"
+                        : "border-white/15 bg-white/10 hover:border-[#6F9272] hover:bg-[#6F9272]/15"
                     }
                   `}
                 >
@@ -438,34 +494,40 @@ export default function CondominioForm({
                     type="checkbox"
                     checked={ativa}
                     onChange={() => alternarArea(area)}
-                    className="h-4 w-4 accent-[#89A58F]"
+                    className="h-4 w-4 accent-[#6F9272]"
                   />
 
-                  <span className="text-sm">{area}</span>
+                  <span className="text-[#FFFFFF]">
+                    {area}
+                  </span>
                 </label>
               );
             })}
           </div>
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             STATUS
-        ====================================================== */}
+        ===================================================== */}
 
-        <section className="border-t border-white/10 pt-8">
+        <section className="border-t border-white/15 pt-8">
           <label
             className="
-              flex items-center justify-between rounded-2xl
-              border border-white/10 bg-white/5 px-5 py-4
+              flex items-center justify-between
+              gap-4
+              rounded-2xl
+              border border-white/15
+              bg-white/10
+              px-5 py-4
               backdrop-blur-xl
             "
           >
             <div>
-              <p className="text-sm font-semibold text-white">
+              <p className="text-sm font-semibold text-[#FFFFFF]">
                 Condomínio ativo
               </p>
 
-              <p className="mt-1 text-xs text-white/60">
+              <p className="mt-1 text-xs text-[#FFFFFF]">
                 Permite acesso à plataforma.
               </p>
             </div>
@@ -475,25 +537,38 @@ export default function CondominioForm({
               name="ativo"
               checked={dados.ativo}
               onChange={alterarCampo}
-              className="h-5 w-5 accent-[#89A58F]"
+              className="h-5 w-5 accent-[#6F9272]"
             />
           </label>
         </section>
 
-        {/* ======================================================
+        {/* =====================================================
             BOTÕES
-        ====================================================== */}
+        ===================================================== */}
 
-        <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-8 sm:flex-row sm:justify-end">
+        <div
+          className="
+            flex flex-col-reverse gap-3
+            border-t border-white/15 pt-8
+            sm:flex-row sm:justify-end
+          "
+        >
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
               className="
-                rounded-2xl border border-white/10 bg-white/5
-                px-6 py-3 text-sm font-semibold text-white/80
-                backdrop-blur-xl transition-all
-                hover:bg-white/10 hover:text-white
+                inline-flex min-h-[58px]
+                items-center justify-center
+                rounded-xl
+                border border-white/20
+                bg-white/10
+                px-4 py-3
+                text-[14px] font-semibold text-[#FFFFFF]
+                backdrop-blur-xl
+                transition-all
+                hover:bg-white/15
+                active:scale-[0.98]
               "
             >
               Cancelar
@@ -504,21 +579,32 @@ export default function CondominioForm({
             type="submit"
             disabled={salvando}
             className="
-              flex items-center justify-center gap-2 rounded-2xl
-              bg-[#89A58F] px-6 py-3 text-sm font-semibold text-white
-              shadow-[0_8px_20px_rgba(137,165,143,0.25)]
+              inline-flex min-h-[58px]
+              items-center justify-center gap-3
+              rounded-xl
+              bg-[#6F9272]
+              px-4 py-3
+              text-[14px] font-semibold text-[#FFFFFF]
+              shadow-[0_8px_22px_rgba(111,146,114,0.22)]
               transition-all duration-300
-              hover:bg-[#7C9986]
+              hover:bg-[#5C7D60]
+              active:scale-[0.98]
+              disabled:cursor-not-allowed
               disabled:opacity-60
             "
           >
-            <Save className="h-4 w-4" />
+            <Save
+              className="h-[22px] w-[22px] shrink-0 text-[#FFFFFF]"
+              strokeWidth={1.8}
+            />
 
-            {salvando
-              ? "Salvando..."
-              : modoEdicao
-              ? "Salvar alterações"
-              : "Cadastrar condomínio"}
+            <span className="text-[#FFFFFF]">
+              {salvando
+                ? "Salvando..."
+                : modoEdicao
+                ? "Salvar alterações"
+                : "Cadastrar condomínio"}
+            </span>
           </button>
         </div>
       </div>
@@ -528,21 +614,20 @@ export default function CondominioForm({
 
 /* ======================================================
    CABEÇALHO DAS SEÇÕES
+   Ícone solto, sem caixa ou contorno
 ====================================================== */
 
 function SectionHeader({ icon, title }) {
   return (
-    <div className="flex items-center gap-4">
-      <div
-        className="
-          flex h-11 w-11 items-center justify-center rounded-2xl
-          border border-[#89A58F]/30 bg-[#89A58F]/15 text-[#B9D4BC]
-        "
-      >
-        {icon}
-      </div>
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-[#FFFFFF]">
+        {icon &&
+          (typeof icon.type === "function"
+            ? icon
+            : icon)}
+      </span>
 
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="text-lg font-semibold text-[#FFFFFF]">
         {title}
       </h2>
     </div>
@@ -567,12 +652,14 @@ function Input({
     <div>
       <label
         htmlFor={name}
-        className="mb-2 block text-sm font-medium text-white/80"
+        className="mb-2 block text-sm font-medium text-[#FFFFFF]"
       >
         {label}
 
         {required && (
-          <span className="ml-1 text-[#89A58F]">*</span>
+          <span className="ml-1 text-[#FFFFFF]">
+            *
+          </span>
         )}
       </label>
 
@@ -586,14 +673,21 @@ function Input({
         placeholder={placeholder}
         disabled={disabled}
         className="
-          w-full rounded-2xl border border-white/10 bg-white/5
-          px-4 py-3 text-sm text-white
-          backdrop-blur-xl outline-none transition-all
-          placeholder:text-white/40
-          focus:border-[#89A58F]/50
-          focus:bg-white/10
-          focus:ring-2 focus:ring-[#89A58F]/20
-          disabled:cursor-not-allowed disabled:opacity-60
+          w-full
+          rounded-xl
+          border border-white/15
+          bg-white/10
+          px-4 py-3
+          text-[14px] text-[#FFFFFF]
+          backdrop-blur-xl
+          outline-none
+          transition-all
+          placeholder:text-[#FFFFFF]
+          focus:border-[#6F9272]
+          focus:bg-white/15
+          focus:ring-2 focus:ring-[#6F9272]/30
+          disabled:cursor-not-allowed
+          disabled:opacity-60
         "
       />
     </div>

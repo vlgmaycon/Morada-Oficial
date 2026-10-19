@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
+
 import { Link } from "react-router-dom";
+
 import {
   Building2,
   Users,
   ShieldCheck,
   Bell,
-  Plus,
   ArrowRight,
 } from "lucide-react";
 
 import { db } from "@/auth/firebase";
+
+import useAuth from "@/auth/AuthContext";
 
 import {
   collection,
@@ -19,6 +22,8 @@ import {
 } from "firebase/firestore";
 
 export default function Dashboard() {
+  const { user } = useAuth();
+
   const [loading, setLoading] = useState(true);
 
   const [totais, setTotais] = useState({
@@ -126,6 +131,11 @@ export default function Dashboard() {
     carregarResumo();
   }, []);
 
+  const nomeUsuario =
+    user?.nome ||
+    user?.name ||
+    "Usuário";
+
   return (
     <div className="space-y-6">
 
@@ -133,87 +143,42 @@ export default function Dashboard() {
           CABEÇALHO
       ===================================================== */}
 
-      <div
-        className="
-          rounded-[28px]
-          bg-white
-          p-6
-          shadow-[0_10px_35px_rgba(40,52,44,0.08)]
-        "
-      >
-        <div
+      <div className="px-1 pt-1">
+
+        <p
           className="
-            flex
-            flex-col
-            gap-5
-            md:flex-row
-            md:items-center
-            md:justify-between
+            text-sm
+            font-medium
+            text-[#6F8D7A]
           "
         >
-          <div>
-            <p
-              className="
-                text-[11px]
-                font-bold
-                uppercase
-                tracking-[0.12em]
-                text-[#6F8D7A]
-              "
-            >
-              Minha Área
-            </p>
+          Minha Área
+        </p>
 
-            <h1
-              className="
-                mt-2
-                text-2xl
-                font-semibold
-                text-[#595959]
-              "
-            >
-              Dashboard
-            </h1>
+        <h1
+          className="
+            mt-1
+            text-3xl
+            font-semibold
+            tracking-[-0.02em]
+            text-[#595959]
+          "
+        >
+          Olá, {nomeUsuario}!
+        </h1>
 
-            <p
-              className="
-                mt-2
-                max-w-2xl
-                text-sm
-                leading-6
-                text-[#8A8A8A]
-              "
-            >
-              Acompanhe os principais indicadores
-              e informações da plataforma Morada
-              Oficial.
-            </p>
-          </div>
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#8A8A8A]
+          "
+        >
+          Bem-vindo de volta. Aqui está um resumo da
+          plataforma Morada Oficial.
+        </p>
 
-          <Link
-            to="/minha-area/condominios"
-            className="
-              inline-flex
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-[#6F8D7A]
-              px-5
-              py-3
-              text-sm
-              font-semibold
-              text-white
-              shadow-sm
-              transition-all
-              hover:bg-[#5F7D6A]
-              active:scale-[0.98]
-            "
-          >
-            <Plus size={18} />
-            Novo condomínio
-          </Link>
-        </div>
       </div>
 
       {/* =====================================================
@@ -347,6 +312,7 @@ export default function Dashboard() {
           xl:grid-cols-2
         "
       >
+
         {/* Próximos módulos */}
 
         <div

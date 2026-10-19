@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useContext,
@@ -31,9 +32,7 @@ const AuthContext = createContext(null);
 ========================================================= */
 
 function normalizarEmail(valor) {
-  return String(valor || "")
-    .trim()
-    .toLowerCase();
+  return String(valor || "").trim().toLowerCase();
 }
 
 function normalizarCPF(valor) {
@@ -41,29 +40,14 @@ function normalizarCPF(valor) {
 }
 
 function obterIdRegistro(registro) {
-  if (!registro) {
-    return "";
-  }
+  if (!registro) return "";
 
-  return (
-    registro.id ||
-    registro._id ||
-    registro.ID ||
-    ""
-  );
+  return registro.id || registro._id || registro.ID || "";
 }
 
 function obterPerfilUsuario(usuario) {
-  const perfil =
-    usuario?.perfil ||
-    usuario?.role ||
-    "Morador";
-
-  const perfilNormalizado = String(
-    perfil
-  )
-    .trim()
-    .toLowerCase();
+  const perfil = usuario?.perfil || usuario?.role || "Morador";
+  const perfilNormalizado = String(perfil).trim().toLowerCase();
 
   if (
     perfilNormalizado === "administrador" ||
@@ -79,9 +63,7 @@ function obterPerfilUsuario(usuario) {
     return "sindico";
   }
 
-  if (
-    perfilNormalizado === "portaria"
-  ) {
+  if (perfilNormalizado === "portaria") {
     return "portaria";
   }
 
@@ -96,44 +78,32 @@ function obterPerfilUsuario(usuario) {
 }
 
 function usuarioEstaAtivo(usuario) {
-  if (!usuario) {
-    return false;
-  }
-
-  if (usuario.ativo === false) {
-    return false;
-  }
-
-  const status = String(
-    usuario.status || ""
-  )
-    .trim()
-    .toLowerCase();
+  if (!usuario) return false;
 
   if (
-    status === "inativo" ||
-    status === "inactive" ||
-    status === "bloqueado" ||
-    status === "blocked"
+    usuario.ativo === false ||
+    usuario.active === false
   ) {
     return false;
   }
 
-  return true;
+  const status = String(usuario.status || "")
+    .trim()
+    .toLowerCase();
+
+  return ![
+    "inativo",
+    "inactive",
+    "bloqueado",
+    "blocked",
+  ].includes(status);
 }
 
 function obterNomeUsuario(usuario) {
-  return (
-    usuario?.nome ||
-    usuario?.name ||
-    "Usuário"
-  );
+  return usuario?.nome || usuario?.name || "Usuário";
 }
 
-function obterCondominioId(
-  usuario,
-  condominio
-) {
+function obterCondominioId(usuario, condominio) {
   return (
     usuario?.condominio_id ||
     usuario?.condominioId ||
@@ -142,10 +112,7 @@ function obterCondominioId(
   );
 }
 
-function obterCondominioNome(
-  usuario,
-  condominio
-) {
+function obterCondominioNome(usuario, condominio) {
   return (
     usuario?.condominio_nome ||
     usuario?.condominioNome ||
@@ -153,6 +120,12 @@ function obterCondominioNome(
     ""
   );
 }
+
+const PERFIS_ADMINISTRATIVOS = [
+  "admin",
+  "sindico",
+  "portaria",
+];
 
 /* =========================================================
    CRIAR CONTA DA SESSÃO
@@ -163,101 +136,40 @@ function criarContaDoUsuario(
   firebaseUser,
   condominio = null
 ) {
-  const role =
-    obterPerfilUsuario(usuario);
+  const role = obterPerfilUsuario(usuario);
 
   return {
-    id:
-      obterIdRegistro(usuario) ||
-      firebaseUser?.uid ||
-      "",
-
-    uid:
-      firebaseUser?.uid ||
-      "",
-
-    name:
-      obterNomeUsuario(usuario),
-
-    nome:
-      obterNomeUsuario(usuario),
-
-    email:
-      firebaseUser?.email ||
-      usuario?.email ||
-      "",
-
+    id: obterIdRegistro(usuario) || firebaseUser?.uid || "",
+    uid: firebaseUser?.uid || "",
+    name: obterNomeUsuario(usuario),
+    nome: obterNomeUsuario(usuario),
+    email: firebaseUser?.email || usuario?.email || "",
     role,
+    perfil: usuario?.perfil || role,
+    telefone: usuario?.telefone || "",
+    cpf: usuario?.cpf || "",
+    bloco: usuario?.bloco || "",
+    apartamento: usuario?.apartamento || "",
+    tipoUnidade: usuario?.tipoUnidade || "",
+    unidadeId: usuario?.unidadeId || "",
+    unidade: usuario?.unidade || null,
 
-    perfil:
-      usuario?.perfil ||
-      role,
+    condominio_id: obterCondominioId(usuario, condominio),
+    condominio_nome: obterCondominioNome(usuario, condominio),
 
-    telefone:
-      usuario?.telefone ||
-      "",
+    ativo: usuario?.ativo !== false && usuario?.active !== false,
 
-    cpf:
-      usuario?.cpf ||
-      "",
+    foto: usuario?.foto || firebaseUser?.photoURL || "",
 
-    bloco:
-      usuario?.bloco ||
-      "",
+    dependentes: Array.isArray(usuario?.dependentes)
+      ? usuario.dependentes
+      : [],
 
-    apartamento:
-      usuario?.apartamento ||
-      "",
+    veiculos: Array.isArray(usuario?.veiculos)
+      ? usuario.veiculos
+      : [],
 
-    tipoUnidade:
-      usuario?.tipoUnidade ||
-      "",
-
-    unidadeId:
-      usuario?.unidadeId ||
-      "",
-
-    unidade:
-      usuario?.unidade ||
-      null,
-
-    condominio_id:
-      obterCondominioId(
-        usuario,
-        condominio
-      ),
-
-    condominio_nome:
-      obterCondominioNome(
-        usuario,
-        condominio
-      ),
-
-    ativo:
-      usuario?.ativo !== false,
-
-    foto:
-      usuario?.foto ||
-      firebaseUser?.photoURL ||
-      "",
-
-    dependentes:
-      Array.isArray(
-        usuario?.dependentes
-      )
-        ? usuario.dependentes
-        : [],
-
-    veiculos:
-      Array.isArray(
-        usuario?.veiculos
-      )
-        ? usuario.veiculos
-        : [],
-
-    ultimo_acesso:
-      usuario?.ultimo_acesso ||
-      "",
+    ultimo_acesso: usuario?.ultimo_acesso || "",
   };
 }
 
@@ -265,48 +177,24 @@ function criarContaDoUsuario(
    BUSCAR USUÁRIO POR CPF
 ========================================================= */
 
-async function buscarUsuarioPorCPF(
-  cpfInformado
-) {
-  const cpf =
-    normalizarCPF(cpfInformado);
+async function buscarUsuarioPorCPF(cpfInformado) {
+  const cpf = normalizarCPF(cpfInformado);
 
-  if (cpf.length !== 11) {
-    return null;
-  }
+  if (cpf.length !== 11) return null;
 
-  const usuariosRef =
-    collection(
-      db,
-      "usuarios"
-    );
-
-  /* =======================================================
-     CPF NORMALIZADO
-  ======================================================= */
+  const usuariosRef = collection(db, "usuarios");
 
   try {
-    const consultaNormalizada =
-      query(
-        usuariosRef,
-        where(
-          "cpf_normalizado",
-          "==",
-          cpf
-        ),
-        limit(1)
-      );
+    const consultaNormalizada = query(
+      usuariosRef,
+      where("cpf_normalizado", "==", cpf),
+      limit(1)
+    );
 
-    const resultadoNormalizado =
-      await getDocs(
-        consultaNormalizada
-      );
+    const resultado = await getDocs(consultaNormalizada);
 
-    if (
-      !resultadoNormalizado.empty
-    ) {
-      const documento =
-        resultadoNormalizado.docs[0];
+    if (!resultado.empty) {
+      const documento = resultado.docs[0];
 
       return {
         id: documento.id,
@@ -315,37 +203,22 @@ async function buscarUsuarioPorCPF(
     }
   } catch (erro) {
     console.warn(
-      "Aviso ao consultar cpf_normalizado:",
-      erro
+      "Aviso ao consultar CPF normalizado:",
+      erro?.code || erro?.message
     );
   }
 
-  /* =======================================================
-     CPF
-  ======================================================= */
-
   try {
-    const consultaCPF =
-      query(
-        usuariosRef,
-        where(
-          "cpf",
-          "==",
-          cpf
-        ),
-        limit(1)
-      );
+    const consultaCPF = query(
+      usuariosRef,
+      where("cpf", "==", cpf),
+      limit(1)
+    );
 
-    const resultadoCPF =
-      await getDocs(
-        consultaCPF
-      );
+    const resultado = await getDocs(consultaCPF);
 
-    if (
-      !resultadoCPF.empty
-    ) {
-      const documento =
-        resultadoCPF.docs[0];
+    if (!resultado.empty) {
+      const documento = resultado.docs[0];
 
       return {
         id: documento.id,
@@ -354,8 +227,8 @@ async function buscarUsuarioPorCPF(
     }
   } catch (erro) {
     console.warn(
-      "Aviso ao consultar cpf:",
-      erro
+      "Aviso ao consultar CPF:",
+      erro?.code || erro?.message
     );
   }
 
@@ -366,28 +239,13 @@ async function buscarUsuarioPorCPF(
    BUSCAR USUÁRIO PELO UID
 ========================================================= */
 
-async function buscarUsuarioPorUID(
-  uid
-) {
-  if (!uid) {
-    return null;
-  }
+async function buscarUsuarioPorUID(uid) {
+  if (!uid) return null;
 
-  const referencia =
-    doc(
-      db,
-      "usuarios",
-      uid
-    );
+  const referencia = doc(db, "usuarios", uid);
+  const documento = await getDoc(referencia);
 
-  const documento =
-    await getDoc(
-      referencia
-    );
-
-  if (!documento.exists()) {
-    return null;
-  }
+  if (!documento.exists()) return null;
 
   return {
     id: documento.id,
@@ -396,58 +254,21 @@ async function buscarUsuarioPorUID(
 }
 
 /* =========================================================
-   BUSCAR CONDOMÍNIO
+   BUSCAR CONDOMÍNIO PELO ID VINCULADO AO USUÁRIO
 ========================================================= */
 
-async function buscarCondominio(
-  usuario,
-  condominioSelecionado
-) {
-  const condominioIdSelecionado =
-    condominioSelecionado?.id ||
-    "";
+async function buscarCondominioPorId(id) {
+  if (!id) return null;
 
-  const condominioIdUsuario =
-    usuario?.condominio_id ||
-    usuario?.condominioId ||
-    "";
+  const referencia = doc(
+    db,
+    "condominios",
+    String(id)
+  );
 
-  if (!condominioIdUsuario) {
-    return null;
-  }
+  const documento = await getDoc(referencia);
 
-  if (!condominioIdSelecionado) {
-    return null;
-  }
-
-  if (
-    String(
-      condominioIdUsuario
-    ) !==
-    String(
-      condominioIdSelecionado
-    )
-  ) {
-    return null;
-  }
-
-  const referencia =
-    doc(
-      db,
-      "condominios",
-      String(
-        condominioIdUsuario
-      )
-    );
-
-  const documento =
-    await getDoc(
-      referencia
-    );
-
-  if (!documento.exists()) {
-    return null;
-  }
+  if (!documento.exists()) return null;
 
   return {
     id: documento.id,
@@ -456,124 +277,163 @@ async function buscarCondominio(
 }
 
 /* =========================================================
+   VALIDAR CONDOMÍNIO SELECIONADO
+========================================================= */
+
+async function buscarCondominio(
+  usuario,
+  condominioSelecionado
+) {
+  const condominioIdSelecionado =
+    condominioSelecionado?.id || "";
+
+  const condominioIdUsuario =
+    usuario?.condominio_id ||
+    usuario?.condominioId ||
+    "";
+
+  if (!condominioIdUsuario || !condominioIdSelecionado) {
+    return null;
+  }
+
+  if (
+    String(condominioIdUsuario) !==
+    String(condominioIdSelecionado)
+  ) {
+    return null;
+  }
+
+  return buscarCondominioPorId(condominioIdUsuario);
+}
+
+/* =========================================================
+   ATUALIZAR ÚLTIMO ACESSO
+========================================================= */
+
+async function registrarUltimoAcesso(uid) {
+  const agora = new Date().toISOString();
+
+  try {
+    await updateDoc(
+      doc(db, "usuarios", uid),
+      { ultimo_acesso: agora }
+    );
+  } catch (erro) {
+    console.warn(
+      "Não foi possível atualizar o último acesso:",
+      erro?.code || erro?.message
+    );
+  }
+
+  return agora;
+}
+
+/* =========================================================
    PROVIDER
 ========================================================= */
 
-export function AuthProvider({
-  children,
-}) {
-  const [
-    user,
-    setUser,
-  ] = useState(null);
-
-  const [
-    carregando,
-    setCarregando,
-  ] = useState(true);
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [carregando, setCarregando] = useState(true);
 
   /* =======================================================
      RESTAURAR SESSÃO
   ======================================================= */
 
   useEffect(() => {
-    const unsubscribe =
-      onAuthStateChanged(
-        auth,
-        async (firebaseUser) => {
-          console.log(
-            "[AUTH] Estado Firebase:",
-            firebaseUser
-              ? "autenticado"
-              : "desconectado"
-          );
+    let desmontado = false;
 
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        try {
           if (!firebaseUser) {
-            setUser(null);
-            setCarregando(false);
+            if (!desmontado) setUser(null);
             return;
           }
 
-          try {
-            console.log(
-              "[AUTH] UID autenticado:",
-              firebaseUser.uid
-            );
+          const usuarioEncontrado =
+            await buscarUsuarioPorUID(firebaseUser.uid);
 
-            const usuarioEncontrado =
-              await buscarUsuarioPorUID(
-                firebaseUser.uid
-              );
-
-            if (
-              !usuarioEncontrado
-            ) {
-              console.error(
-                "[AUTH] Documento usuarios/{UID} não encontrado."
-              );
-
-              await signOut(auth);
-              setUser(null);
-              return;
-            }
-
-            const dados =
-              usuarioEncontrado.data;
-
-            console.log(
-              "[AUTH] Documento do usuário encontrado:",
-              dados
-            );
-
-            if (
-              !usuarioEstaAtivo(
-                dados
-              )
-            ) {
-              console.error(
-                "[AUTH] Usuário está inativo."
-              );
-
-              await signOut(auth);
-              setUser(null);
-              return;
-            }
-
-            const role =
-              obterPerfilUsuario(
-                dados
-              );
-
-            console.log(
-              "[AUTH] Perfil identificado:",
-              role
-            );
-
-            const account =
-              criarContaDoUsuario(
-                {
-                  ...dados,
-                  id: usuarioEncontrado.id,
-                },
-                firebaseUser
-              );
-
-            setUser(account);
-          } catch (erro) {
-            console.error(
-              "[AUTH] Erro ao restaurar sessão:",
-              erro
-            );
-
+          if (!usuarioEncontrado) {
             await signOut(auth);
-            setUser(null);
-          } finally {
-            setCarregando(false);
-          }
-        }
-      );
 
-    return unsubscribe;
+            if (!desmontado) setUser(null);
+            return;
+          }
+
+          const dados = usuarioEncontrado.data;
+
+          if (!usuarioEstaAtivo(dados)) {
+            await signOut(auth);
+
+            if (!desmontado) setUser(null);
+            return;
+          }
+
+          const role = obterPerfilUsuario(dados);
+          let condominioAtual = null;
+
+          if (role !== "super_admin") {
+            const condominioId =
+              dados.condominio_id ||
+              dados.condominioId ||
+              "";
+
+            if (!condominioId) {
+              await signOut(auth);
+
+              if (!desmontado) setUser(null);
+              return;
+            }
+
+            condominioAtual =
+              await buscarCondominioPorId(condominioId);
+
+            if (
+              !condominioAtual ||
+              condominioAtual.ativo === false
+            ) {
+              await signOut(auth);
+
+              if (!desmontado) setUser(null);
+              return;
+            }
+          }
+
+          const account = criarContaDoUsuario(
+            {
+              ...dados,
+              id: usuarioEncontrado.id,
+            },
+            firebaseUser,
+            condominioAtual
+          );
+
+          if (!desmontado) setUser(account);
+        } catch (erro) {
+          console.error(
+            "[AUTH] Erro ao restaurar sessão:",
+            erro?.code || erro?.message
+          );
+
+          try {
+            await signOut(auth);
+          } catch {
+            // Ignora falha durante o encerramento da sessão.
+          }
+
+          if (!desmontado) setUser(null);
+        } finally {
+          if (!desmontado) setCarregando(false);
+        }
+      }
+    );
+
+    return () => {
+      desmontado = true;
+      unsubscribe();
+    };
   }, []);
 
   /* =======================================================
@@ -585,118 +445,60 @@ export function AuthProvider({
     password,
     condominioSelecionado = null
   ) {
-    const valor =
-      String(
-        identificador || ""
-      ).trim();
-
-    const senha =
-      String(
-        password || ""
-      );
+    const valor = String(identificador || "").trim();
+    const senha = String(password || "");
 
     if (!valor) {
-      throw new Error(
-        "Informe seu CPF ou e-mail."
-      );
+      throw new Error("Informe seu CPF ou e-mail.");
     }
 
     if (!senha) {
-      throw new Error(
-        "Informe sua senha."
-      );
+      throw new Error("Informe sua senha.");
     }
 
-    let firebaseUser =
-      null;
-
-    let usuarioFirestore =
-      null;
-
     try {
-      console.log(
-        "[LOGIN] Iniciando login:",
-        valor.includes("@")
-          ? "e-mail"
-          : "CPF"
-      );
+      let firebaseUser = null;
+      let usuarioFirestore = null;
 
       /* ===================================================
-         E-MAIL
+         LOGIN POR E-MAIL
       =================================================== */
 
-      if (
-        valor.includes("@")
-      ) {
-        const email =
-          normalizarEmail(
-            valor
-          );
+      if (valor.includes("@")) {
+        const email = normalizarEmail(valor);
 
-        console.log(
-          "[LOGIN] Autenticando e-mail no Firebase..."
+        const resultado = await signInWithEmailAndPassword(
+          auth,
+          email,
+          senha
         );
 
-        const resultado =
-          await signInWithEmailAndPassword(
-            auth,
-            email,
-            senha
-          );
+        firebaseUser = resultado.user;
 
-        firebaseUser =
-          resultado.user;
-
-        console.log(
-          "[LOGIN] Firebase autenticou. UID:",
+        usuarioFirestore = await buscarUsuarioPorUID(
           firebaseUser.uid
         );
-
-        usuarioFirestore =
-          await buscarUsuarioPorUID(
-            firebaseUser.uid
-          );
       }
 
       /* ===================================================
-         CPF
+         LOGIN POR CPF
       =================================================== */
 
       else {
-        console.log(
-          "[LOGIN] Buscando usuário pelo CPF..."
-        );
-
         const usuarioEncontrado =
-          await buscarUsuarioPorCPF(
-            valor
-          );
+          await buscarUsuarioPorCPF(valor);
 
-        if (
-          !usuarioEncontrado
-        ) {
-          throw new Error(
-            "CPF não encontrado."
-          );
+        if (!usuarioEncontrado) {
+          throw new Error("CPF não encontrado.");
         }
 
-        const dados =
-          usuarioEncontrado.data;
-
-        if (
-          !usuarioEstaAtivo(
-            dados
-          )
-        ) {
-          throw new Error(
-            "Usuário inativo."
-          );
+        if (!usuarioEstaAtivo(usuarioEncontrado.data)) {
+          throw new Error("Usuário inativo.");
         }
 
-        const emailUsuario =
-          normalizarEmail(
-            dados?.email
-          );
+        const emailUsuario = normalizarEmail(
+          usuarioEncontrado.data?.email
+        );
 
         if (!emailUsuario) {
           throw new Error(
@@ -704,193 +506,94 @@ export function AuthProvider({
           );
         }
 
-        console.log(
-          "[LOGIN] CPF localizado. Autenticando e-mail vinculado..."
+        const resultado = await signInWithEmailAndPassword(
+          auth,
+          emailUsuario,
+          senha
         );
 
-        const resultado =
-          await signInWithEmailAndPassword(
-            auth,
-            emailUsuario,
-            senha
-          );
+        firebaseUser = resultado.user;
 
-        firebaseUser =
-          resultado.user;
-
-        usuarioFirestore =
-          await buscarUsuarioPorUID(
-            firebaseUser.uid
-          );
+        usuarioFirestore = await buscarUsuarioPorUID(
+          firebaseUser.uid
+        );
       }
 
       /* ===================================================
-         DOCUMENTO FIRESTORE
+         DOCUMENTO DO USUÁRIO
       =================================================== */
 
-      if (
-        !usuarioFirestore
-      ) {
+      if (!usuarioFirestore) {
         throw new Error(
-          "A conta foi autenticada no Firebase, mas o cadastro correspondente não foi encontrado em usuarios."
+          "A conta foi autenticada, mas o cadastro correspondente não foi encontrado."
         );
       }
 
-      const dados =
-        usuarioFirestore.data;
+      const dados = usuarioFirestore.data;
 
-      console.log(
-        "[LOGIN] Cadastro Firestore:",
-        dados
-      );
-
-      /* ===================================================
-         ATIVO
-      =================================================== */
-
-      if (
-        !usuarioEstaAtivo(
-          dados
-        )
-      ) {
-        throw new Error(
-          "Usuário está inativo."
-        );
+      if (!usuarioEstaAtivo(dados)) {
+        throw new Error("Usuário inativo.");
       }
 
-      /* ===================================================
-         PERFIL
-      =================================================== */
-
-      const role =
-        obterPerfilUsuario(
-          dados
-        );
-
-      console.log(
-        "[LOGIN] Perfil final:",
-        role
-      );
+      const role = obterPerfilUsuario(dados);
 
       /* ===================================================
          SUPER ADMIN
       =================================================== */
 
-      if (
-        role ===
-        "super_admin"
-      ) {
-        console.log(
-          "[LOGIN] SUPER ADMIN RECONHECIDO."
-        );
-
-        /*
-         * Super Admin não usa condomínio.
-         */
-
-        if (
-          condominioSelecionado
-        ) {
-          await signOut(auth);
-
+      if (role === "super_admin") {
+        if (condominioSelecionado) {
           throw new Error(
             "O Super Admin não deve selecionar um condomínio."
           );
         }
 
-        const account =
-          criarContaDoUsuario(
-            {
-              ...dados,
-              id: usuarioFirestore.id,
-            },
-            firebaseUser,
-            null
-          );
-
-        const agora =
-          new Date().toISOString();
-
-        account.ultimo_acesso =
-          agora;
-
-        try {
-          await updateDoc(
-            doc(
-              db,
-              "usuarios",
-              firebaseUser.uid
-            ),
-            {
-              ultimo_acesso:
-                agora,
-            }
-          );
-        } catch (
-          erroUltimoAcesso
-        ) {
-          console.warn(
-            "[LOGIN] Não foi possível atualizar ultimo_acesso:",
-            erroUltimoAcesso
-          );
-        }
-
-        setUser(account);
-
-        console.log(
-          "[LOGIN] Login do Super Admin concluído."
+        const account = criarContaDoUsuario(
+          {
+            ...dados,
+            id: usuarioFirestore.id,
+          },
+          firebaseUser
         );
 
+        account.ultimo_acesso =
+          await registrarUltimoAcesso(firebaseUser.uid);
+
+        setUser(account);
         return account;
       }
 
+     
       /* ===================================================
-         DEMAIS PERFIS
+         EXIGIR CONDOMÍNIO PARA TODOS OS DEMAIS PERFIS
       =================================================== */
 
-      if (
-        !condominioSelecionado
-      ) {
-        console.log(
-          "[LOGIN] Usuário não é Super Admin e não selecionou condomínio."
+      if (!condominioSelecionado) {
+        throw new Error(
+          "Selecione seu condomínio para acessar a plataforma."
         );
-
-        await signOut(auth);
-
-        return null;
       }
 
+
       /* ===================================================
-         CONDOMÍNIO DO USUÁRIO
+         VALIDAR CONDOMÍNIO SELECIONADO
       =================================================== */
 
       const condominioIdUsuario =
-        dados?.condominio_id ||
-        dados?.condominioId ||
+        dados.condominio_id ||
+        dados.condominioId ||
         "";
 
       if (!condominioIdUsuario) {
-        await signOut(auth);
-
         throw new Error(
           "Este usuário ainda não possui um condomínio vinculado."
         );
       }
 
-      /* ===================================================
-         VALIDAR CONDOMÍNIO
-      =================================================== */
-
       if (
-        String(
-          condominioIdUsuario
-        ) !==
-        String(
-          condominioSelecionado.id
-        )
+        String(condominioIdUsuario) !==
+        String(condominioSelecionado.id)
       ) {
-        await signOut(auth);
-
         throw new Error(
           "O condomínio selecionado não corresponde ao cadastro deste usuário."
         );
@@ -905,82 +608,43 @@ export function AuthProvider({
           condominioSelecionado
         );
 
-      if (
-        !condominioEncontrado
-      ) {
-        await signOut(auth);
-
+      if (!condominioEncontrado) {
         throw new Error(
           "O condomínio selecionado não foi encontrado."
         );
       }
 
-      /* ===================================================
-         CONTA
-      =================================================== */
-
-      const account =
-        criarContaDoUsuario(
-          {
-            ...dados,
-            id: usuarioFirestore.id,
-          },
-          firebaseUser,
-          condominioEncontrado
-        );
-
-      const agora =
-        new Date().toISOString();
-
-      account.ultimo_acesso =
-        agora;
-
-      try {
-        await updateDoc(
-          doc(
-            db,
-            "usuarios",
-            firebaseUser.uid
-          ),
-          {
-            ultimo_acesso:
-              agora,
-          }
-        );
-      } catch (
-        erroUltimoAcesso
-      ) {
-        console.warn(
-          "[LOGIN] Não foi possível atualizar ultimo_acesso:",
-          erroUltimoAcesso
-        );
+      if (condominioEncontrado.ativo === false) {
+        throw new Error("Este condomínio está inativo.");
       }
 
-      setUser(account);
-
-      console.log(
-        "[LOGIN] Login concluído:",
-        account.role
+      const account = criarContaDoUsuario(
+        {
+          ...dados,
+          id: usuarioFirestore.id,
+        },
+        firebaseUser,
+        condominioEncontrado
       );
 
+      account.ultimo_acesso =
+        await registrarUltimoAcesso(firebaseUser.uid);
+
+      setUser(account);
       return account;
     } catch (error) {
       console.error(
         "[LOGIN] Falha:",
-        error
+        error?.code || error?.message
       );
 
       try {
         await signOut(auth);
       } catch {
-        // Ignora erro de logout durante a falha.
+        // Ignora falha durante o encerramento da sessão.
       }
 
-      /*
-       * Erros reais de autenticação são lançados
-       * para que o Login.jsx não transforme tudo
-       * em "selecione um condomínio".
-       */
+      setUser(null);
       throw error;
     }
   }
@@ -994,8 +658,8 @@ export function AuthProvider({
       await signOut(auth);
     } catch (error) {
       console.error(
-        "Erro ao sair:",
-        error
+        "[AUTH] Erro ao sair:",
+        error?.code || error?.message
       );
     } finally {
       setUser(null);
@@ -1008,81 +672,34 @@ export function AuthProvider({
 
   const valor = {
     user,
-
     carregando,
-
     login,
-
     logout,
 
-    isAdmin:
-      user?.role === "admin",
+    isAdmin: user?.role === "admin",
+    isMorador: user?.role === "morador",
+    isSindico: user?.role === "sindico",
+    isPortaria: user?.role === "portaria",
+    isSuperAdmin: user?.role === "super_admin",
 
-    isMorador:
-      user?.role === "morador",
+    condominioId: user?.condominio_id || "",
+    condominioNome: user?.condominio_nome || "",
 
-    isSindico:
-      user?.role === "sindico",
+    unidadeId: user?.unidadeId || "",
+    apartamento: user?.apartamento || "",
+    bloco: user?.bloco || "",
+    perfil: user?.perfil || "",
+    telefone: user?.telefone || "",
+    cpf: user?.cpf || "",
+    nome: user?.nome || user?.name || "",
 
-    isPortaria:
-      user?.role === "portaria",
-
-    isSuperAdmin:
-      user?.role === "super_admin",
-
-    condominioId:
-      user?.condominio_id ||
-      "",
-
-    condominioNome:
-      user?.condominio_nome ||
-      "",
-
-    unidadeId:
-      user?.unidadeId ||
-      "",
-
-    apartamento:
-      user?.apartamento ||
-      "",
-
-    bloco:
-      user?.bloco ||
-      "",
-
-    perfil:
-      user?.perfil ||
-      "",
-
-    telefone:
-      user?.telefone ||
-      "",
-
-    cpf:
-      user?.cpf ||
-      "",
-
-    nome:
-      user?.nome ||
-      user?.name ||
-      "",
-
-    dependentes:
-      user?.dependentes ||
-      [],
-
-    veiculos:
-      user?.veiculos ||
-      [],
-
-    ativo:
-      user?.ativo !== false,
+    dependentes: user?.dependentes || [],
+    veiculos: user?.veiculos || [],
+    ativo: user?.ativo !== false,
   };
 
   return (
-    <AuthContext.Provider
-      value={valor}
-    >
+    <AuthContext.Provider value={valor}>
       {children}
     </AuthContext.Provider>
   );
@@ -1093,7 +710,5 @@ export function AuthProvider({
 ========================================================= */
 
 export default function useAuth() {
-  return useContext(
-    AuthContext
-  );
+  return useContext(AuthContext);
 }

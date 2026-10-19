@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Navigate,
@@ -7,22 +8,35 @@ import {
 import AdminSidebar from "@/admin/components/AdminSidebar";
 import useAuth from "@/auth/AuthContext";
 
+const PERFIS_ADMINISTRATIVOS = [
+  "admin",
+  "sindico",
+  "portaria",
+];
+
 export default function AdminLayout() {
-  const { user } = useAuth();
+  const { user, carregando } = useAuth();
 
   /*
    * =======================================================
-   * PROTEÇÃO DA ÁREA ADMINISTRATIVA
+   * AGUARDAR A RESTAURAÇÃO DA SESSÃO
    * =======================================================
-   *
-   * Sem usuário autenticado:
-   * -> vai para o login.
-   *
-   * Usuário que não seja administrador:
-   * -> volta para a página inicial.
-   *
-   * Somente usuário com role "admin":
-   * -> permanece no painel administrativo.
+   */
+
+  if (carregando) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8F4EF]">
+        <p className="text-sm font-medium text-[#595959]">
+          Carregando sua sessão...
+        </p>
+      </div>
+    );
+  }
+
+  /*
+   * =======================================================
+   * USUÁRIO NÃO AUTENTICADO
+   * =======================================================
    */
 
   if (!user) {
@@ -34,27 +48,49 @@ export default function AdminLayout() {
     );
   }
 
-  if (user.role !== "admin") {
+  /*
+   * =======================================================
+   * VALIDAR PERFIL
+   * Admin, Síndico e Portaria podem entrar nesta área.
+   * =======================================================
+   */
+
+  if (!PERFIS_ADMINISTRATIVOS.includes(user.role)) {
+    if (user.role === "super_admin") {
+      return (
+        <Navigate
+          to="/minha-area"
+          replace
+        />
+      );
+    }
+
+    if (user.role === "morador") {
+      return (
+        <Navigate
+          to="/morador"
+          replace
+        />
+      );
+    }
+
     return (
       <Navigate
-        to="/"
+        to="/login"
         replace
       />
     );
   }
 
+  /*
+   * =======================================================
+   * ÁREA ADMINISTRATIVA
+   * =======================================================
+   */
+
   return (
     <div className="min-h-screen bg-[#F8F4EF]">
-
-      {/* =================================================
-          SIDEBAR ADMINISTRATIVA
-      ================================================= */}
-
       <AdminSidebar />
-
-      {/* =================================================
-          CONTEÚDO
-      ================================================= */}
 
       <main
         className="
@@ -70,7 +106,6 @@ export default function AdminLayout() {
       >
         <Outlet />
       </main>
-
     </div>
   );
 }

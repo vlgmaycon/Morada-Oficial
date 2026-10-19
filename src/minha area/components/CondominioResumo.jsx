@@ -4,6 +4,10 @@ import {
   CircleOff,
 } from "lucide-react";
 
+/* =========================================================
+   RESUMO DE CONDOMÍNIOS
+========================================================= */
+
 export default function CondominioResumo({
   condominios = [],
 }) {
@@ -38,7 +42,7 @@ export default function CondominioResumo({
       className="
         grid
         grid-cols-1
-        gap-3
+        gap-4
         sm:grid-cols-3
       "
     >
@@ -46,46 +50,64 @@ export default function CondominioResumo({
         const Icone = card.icon;
 
         return (
-          <div
+          <article
             key={card.titulo}
             className="
-              rounded-2xl
-              bg-white
+              relative
+              overflow-hidden
+              rounded-3xl
+              border
+              border-white/15
+              bg-white/20
               p-5
-              shadow-sm
+              shadow-[0_10px_35px_rgba(20,30,25,0.12)]
+              backdrop-blur-2xl
+              transition-all
+              duration-300
+              hover:border-[#6F9272]
             "
           >
+            {/* EFEITO GLASS */}
+
             <div
               className="
+                pointer-events-none
+                absolute
+                inset-0
+                bg-gradient-to-br
+                from-white/[0.08]
+                via-transparent
+                to-white/[0.02]
+              "
+            />
+
+            <div
+              className="
+                relative
+                z-10
                 flex
                 items-center
-                gap-3
+                gap-4
               "
             >
-              <div
+              {/* ÍCONE SEM CÍRCULO OU CONTORNO */}
+
+              <Icone
                 className="
-                  flex
-                  h-10
-                  w-10
+                  h-7
+                  w-7
                   shrink-0
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-[#EEF4EE]
-                  text-[#6F8D7A]
+                  text-[#FFFFFF]
                 "
-              >
-                <Icone
-                  className="h-5 w-5"
-                  strokeWidth={1.8}
-                />
-              </div>
+                strokeWidth={1.8}
+              />
 
               <div className="min-w-0">
                 <p
                   className="
-                    text-xs
-                    text-[#748078]
+                    text-sm
+                    font-medium
+                    text-[#FFFFFF]
                   "
                 >
                   {card.titulo}
@@ -95,16 +117,17 @@ export default function CondominioResumo({
                   className="
                     mt-1
                     block
-                    text-2xl
+                    text-3xl
                     font-semibold
-                    text-[#333]
+                    leading-none
+                    text-[#FFFFFF]
                   "
                 >
                   {card.valor}
                 </strong>
               </div>
             </div>
-          </div>
+          </article>
         );
       })}
     </div>

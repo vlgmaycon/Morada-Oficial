@@ -23,6 +23,10 @@ function normalizarEmail(valor = "") {
   return String(valor).trim().toLowerCase();
 }
 
+function normalizarTexto(valor = "") {
+  return String(valor || "").trim();
+}
+
 function gerarIdentificadorAdministrativo(nome = "") {
   const nomeNormalizado = String(nome)
     .normalize("NFD")
@@ -37,12 +41,11 @@ function gerarIdentificadorAdministrativo(nome = "") {
  * O catálogo público contém somente os campos necessários
  * para localizar um condomínio na tela de login.
  *
- * Não incluir e-mail, CPF/CNPJ, telefone, dados de acesso
- * administrativo ou outras informações privadas aqui.
+ * Dados pessoais e administrativos permanecem privados.
  */
 function criarDadosPublicos(dados = {}) {
   return {
-    nome: String(dados.nome || "Condomínio sem nome").trim(),
+    nome: normalizarTexto(dados.nome) || "Condomínio sem nome",
     endereco:
       typeof dados.endereco === "string"
         ? dados.endereco
@@ -97,7 +100,11 @@ export async function buscarCondominio(id) {
 ====================================================== */
 
 export async function criarCondominio(dados) {
-  const nome = String(dados?.nome || "").trim();
+  const nome = normalizarTexto(dados?.nome);
+
+  const nomeResponsavelAdmin = normalizarTexto(
+    dados?.nomeResponsavelAdmin
+  );
 
   const emailResponsavelAdmin = normalizarEmail(
     dados?.emailResponsavelAdmin
@@ -105,6 +112,12 @@ export async function criarCondominio(dados) {
 
   if (!nome) {
     throw new Error("Informe o nome do condomínio.");
+  }
+
+  if (!nomeResponsavelAdmin) {
+    throw new Error(
+      "Informe o nome do responsável administrativo."
+    );
   }
 
   if (!emailResponsavelAdmin) {
@@ -135,12 +148,14 @@ export async function criarCondominio(dados) {
   const dadosPrivados = {
     ...dadosCondominio,
     nome,
+    nomeResponsavelAdmin,
     email: normalizarEmail(dadosCondominio.email),
     emailResponsavelAdmin,
 
     acessoAdministrativo: {
       identificador: gerarIdentificadorAdministrativo(nome),
       status: "pendente",
+      nomeResponsavelAdmin,
       emailResponsavelAdmin,
       adminUid: null,
       primeiroAcessoConcluido: false,
@@ -190,8 +205,36 @@ export async function editarCondominio(id, dados) {
 
   const {
     acessoAdministrativo: _acessoInformado,
-    ...dadosAtualizacao
+    ...dadosRecebidos
   } = dados;
+
+  const dadosAtualizacao = {
+    ...dadosRecebidos,
+  };
+
+  if (dadosRecebidos.nome !== undefined) {
+    dadosAtualizacao.nome = normalizarTexto(
+      dadosRecebidos.nome
+    );
+  }
+
+  if (dadosRecebidos.nomeResponsavelAdmin !== undefined) {
+    dadosAtualizacao.nomeResponsavelAdmin = normalizarTexto(
+      dadosRecebidos.nomeResponsavelAdmin
+    );
+  }
+
+  if (dadosRecebidos.emailResponsavelAdmin !== undefined) {
+    dadosAtualizacao.emailResponsavelAdmin = normalizarEmail(
+      dadosRecebidos.emailResponsavelAdmin
+    );
+  }
+
+  if (dadosRecebidos.email !== undefined) {
+    dadosAtualizacao.email = normalizarEmail(
+      dadosRecebidos.email
+    );
+  }
 
   const dadosAtualizados = {
     ...dadosAtuais,
@@ -201,13 +244,17 @@ export async function editarCondominio(id, dados) {
   const acessoAtual = dadosAtuais.acessoAdministrativo;
 
   /*
-   * Enquanto o acesso estiver pendente, mantém o identificador
-   * sincronizado com o nome e o e-mail do responsável.
+   * Enquanto o acesso estiver pendente, mantém os metadados
+   * administrativos sincronizados com os dados do condomínio.
    *
-   * Um acesso já configurado não é recriado automaticamente
-   * ao editar o condomínio.
+   * Um acesso já configurado não é recriado automaticamente.
    */
   if (!acessoAtual || acessoAtual.status === "pendente") {
+    const nomeResponsavelAdmin = normalizarTexto(
+      dadosAtualizados.nomeResponsavelAdmin ||
+        acessoAtual?.nomeResponsavelAdmin
+    );
+
     const emailResponsavelAdmin = normalizarEmail(
       dadosAtualizados.emailResponsavelAdmin ||
         acessoAtual?.emailResponsavelAdmin
@@ -219,11 +266,15 @@ export async function editarCondominio(id, dados) {
         dadosAtualizados.nome
       ),
       status: acessoAtual?.status || "pendente",
+      nomeResponsavelAdmin,
       emailResponsavelAdmin,
       adminUid: acessoAtual?.adminUid ?? null,
       primeiroAcessoConcluido:
         acessoAtual?.primeiroAcessoConcluido ?? false,
     };
+
+    dadosAtualizados.acessoAdministrativo =
+      dadosAtualizacao.acessoAdministrativo;
   }
 
   dadosAtualizacao.updatedAt = serverTimestamp();
@@ -239,8 +290,9 @@ export async function editarCondominio(id, dados) {
   batch.update(referenciaPrivada, dadosAtualizacao);
 
   /*
-   * Substitui o catálogo por uma versão sanitizada.
-   * Campos privados não são copiados para ele.
+   * O catálogo público recebe somente os campos permitidos.
+   * Nome e e-mail do responsável administrativo não são
+   * publicados nesse catálogo.
    */
   batch.set(
     referenciaPublica,

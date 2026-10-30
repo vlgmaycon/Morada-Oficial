@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -14,6 +15,9 @@ import {
   Home,
   Car,
   Pencil,
+  Copy,
+  KeyRound,
+  Check,
 } from "lucide-react";
 
 import { auth } from "@/auth/firebase";
@@ -53,7 +57,6 @@ export default function Condominios() {
   const [abaAtiva, setAbaAtiva] = useState("lista");
 
   const [condominios, setCondominios] = useState([]);
-
   const [busca, setBusca] = useState("");
 
   const [condominioEditando, setCondominioEditando] =
@@ -65,17 +68,19 @@ export default function Condominios() {
   const [senhaExclusao, setSenhaExclusao] = useState("");
 
   const [carregando, setCarregando] = useState(true);
-
   const [salvando, setSalvando] = useState(false);
-
   const [excluindo, setExcluindo] = useState(false);
 
   const [erro, setErro] = useState("");
-
   const [sucesso, setSucesso] = useState("");
 
   const [condominioAberto, setCondominioAberto] =
     useState(null);
+
+  const [credenciaisAdmin, setCredenciaisAdmin] =
+    useState(null);
+
+  const [copiado, setCopiado] = useState("");
 
   /* =========================================================
      CARREGAR CONDOMÍNIOS
@@ -83,20 +88,11 @@ export default function Condominios() {
 
   async function carregarCondominios() {
     try {
-      setErro("");
-
       const lista = await listarCondominios();
-
       setCondominios(lista);
     } catch (error) {
-      console.error(
-        "Erro ao carregar condomínios:",
-        error
-      );
-
-      setErro(
-        "Não foi possível carregar os condomínios."
-      );
+      console.error("Erro ao carregar condomínios:", error);
+      setErro("Não foi possível carregar os condomínios.");
     } finally {
       setCarregando(false);
     }
@@ -115,6 +111,7 @@ export default function Condominios() {
     setCondominioEditando(null);
     setErro("");
     setSucesso("");
+    setCredenciaisAdmin(null);
   }
 
   /* =========================================================
@@ -126,6 +123,51 @@ export default function Condominios() {
     setAbaAtiva("cadastro");
     setErro("");
     setSucesso("");
+    setCredenciaisAdmin(null);
+  }
+
+  /* =========================================================
+     CRIAR ACESSO ADMINISTRATIVO
+  ========================================================= */
+
+  async function gerarAcessoAdministrador({
+    condominioId,
+    nome,
+    email,
+  }) {
+    const resultado = await criarContaAdminTemporaria({
+      condominioId,
+      nome,
+      email,
+    });
+
+    setCredenciaisAdmin({
+      nome,
+      email: resultado.email || email,
+      senhaTemporaria: resultado.senhaTemporaria,
+    });
+
+    return resultado;
+  }
+
+  /* =========================================================
+     COPIAR CREDENCIAIS
+  ========================================================= */
+
+  async function copiarCredencial(tipo, valor) {
+    try {
+      await navigator.clipboard.writeText(String(valor || ""));
+      setCopiado(tipo);
+
+      window.setTimeout(() => {
+        setCopiado("");
+      }, 2000);
+    } catch (error) {
+      console.error("Erro ao copiar:", error);
+      setErro(
+        "Não foi possível copiar automaticamente. Selecione e copie o conteúdo manualmente."
+      );
+    }
   }
 
   /* =========================================================
@@ -133,11 +175,12 @@ export default function Condominios() {
   ========================================================= */
 
   async function salvarCondominio(dados) {
-    try {
-      setSalvando(true);
-      setErro("");
-      setSucesso("");
+    setSalvando(true);
+    setErro("");
+    setSucesso("");
+    setCredenciaisAdmin(null);
 
+    try {
       if (condominioEditando?.id) {
         const { id, ...dadosAtualizacao } = dados;
 
@@ -146,15 +189,86 @@ export default function Condominios() {
           dadosAtualizacao
         );
 
-        setSucesso(
-          "Condomínio atualizado com sucesso."
-        );
-      } else {
-        await criarCondominio(dados);
+        /*
+         * Se o condomínio ainda estiver com acesso pendente,
+         * a edição também permite tentar criar o administrador.
+         */
+        const acessoPendente =
+          condominioEditando.acessoAdministrativo?.status ===
+            "pendente" &&
+          !condominioEditando.acessoAdministrativo?.adminUid;
 
-        setSucesso(
-          "Condomínio cadastrado com sucesso."
-        );
+        if (acessoPendente) {
+          try {
+            await gerarAcessoAdministrador({
+              condominioId: condominioEditando.id,
+              nome: dados.nomeResponsavelAdmin,
+              email: dados.emailResponsavelAdmin,
+            });
+
+            setSucesso(
+              "Condomínio atualizado e acesso administrativo criado com sucesso."
+            );
+          } catch (erroAcesso) {
+            console.error(
+              "Erro ao criar acesso administrativo:",
+              erroAcesso
+            );
+
+            setSucesso(
+              "Condomínio atualizado. Porém, o acesso administrativo continua pendente. Você poderá tentar novamente editando este condomínio."
+            );
+
+            setErro(
+              erroAcesso.message ||
+                "Não foi possível criar o acesso administrativo."
+            );
+          }
+        } else {
+          setSucesso("Condomínio atualizado com sucesso.");
+        }
+      } else {
+        /*
+         * Primeiro salva o condomínio.
+         * O ID retornado será usado para vincular o administrador.
+         */
+        const novoCondominio = await criarCondominio(dados);
+
+        if (!novoCondominio?.id) {
+          throw new Error(
+            "O condomínio foi processado, mas não recebemos seu identificador. Verifique a lista antes de tentar cadastrar novamente."
+          );
+        }
+
+        /*
+         * Depois cria a conta administrativa no Firebase.
+         * Se falhar, não tenta cadastrar o condomínio novamente.
+         */
+        try {
+          await gerarAcessoAdministrador({
+            condominioId: novoCondominio.id,
+            nome: dados.nomeResponsavelAdmin,
+            email: dados.emailResponsavelAdmin,
+          });
+
+          setSucesso(
+            "Condomínio cadastrado e acesso administrativo criado com sucesso."
+          );
+        } catch (erroAcesso) {
+          console.error(
+            "Condomínio salvo, mas o acesso administrativo falhou:",
+            erroAcesso
+          );
+
+          setSucesso(
+            "Condomínio cadastrado com sucesso, mas o acesso administrativo ficou pendente. Edite esse condomínio na lista para tentar novamente."
+          );
+
+          setErro(
+            erroAcesso.message ||
+              "Não foi possível criar o acesso administrativo."
+          );
+        }
       }
 
       await carregarCondominios();
@@ -163,13 +277,11 @@ export default function Condominios() {
       setCondominioAberto(null);
       setAbaAtiva("lista");
     } catch (error) {
-      console.error(
-        "Erro ao salvar condomínio:",
-        error
-      );
+      console.error("Erro ao salvar condomínio:", error);
 
       setErro(
-        "Não foi possível salvar o condomínio."
+        error?.message ||
+          "Não foi possível salvar o condomínio."
       );
     } finally {
       setSalvando(false);
@@ -232,9 +344,7 @@ export default function Condominios() {
     }
 
     if (!usuarioAtual.email) {
-      setErro(
-        "Não foi possível identificar sua conta."
-      );
+      setErro("Não foi possível identificar sua conta.");
       return;
     }
 
@@ -273,16 +383,10 @@ export default function Condominios() {
 
       await carregarCondominios();
 
-      setSucesso(
-        "Condomínio excluído com sucesso."
-      );
-
+      setSucesso("Condomínio excluído com sucesso.");
       setAbaAtiva("lista");
     } catch (error) {
-      console.error(
-        "Erro ao excluir condomínio:",
-        error
-      );
+      console.error("Erro ao excluir condomínio:", error);
 
       if (
         error?.code === "auth/invalid-credential" ||
@@ -294,18 +398,14 @@ export default function Condominios() {
         return;
       }
 
-      if (
-        error?.code === "auth/too-many-requests"
-      ) {
+      if (error?.code === "auth/too-many-requests") {
         setErro(
           "Muitas tentativas. Aguarde alguns instantes antes de tentar novamente."
         );
         return;
       }
 
-      setErro(
-        "Não foi possível excluir o condomínio."
-      );
+      setErro("Não foi possível excluir o condomínio.");
     } finally {
       setExcluindo(false);
     }
@@ -344,10 +444,7 @@ export default function Condominios() {
 
   return (
     <div className="morada-enter space-y-6">
-
-      {/* =====================================================
-          CABEÇALHO COM SUBTÍTULO
-      ===================================================== */}
+      {/* CABEÇALHO */}
 
       <header
         className="
@@ -415,14 +512,11 @@ export default function Condominios() {
             className="h-[22px] w-[22px] shrink-0"
             strokeWidth={1.8}
           />
-
           <span>Novo condomínio</span>
         </button>
       </header>
 
-      {/* =====================================================
-          MENSAGEM DE SUCESSO
-      ===================================================== */}
+      {/* MENSAGEM DE SUCESSO */}
 
       {sucesso && (
         <div
@@ -445,16 +539,9 @@ export default function Condominios() {
             onClick={() => setSucesso("")}
             aria-label="Fechar mensagem"
             className="
-              flex
-              h-9
-              w-9
-              shrink-0
-              items-center
-              justify-center
-              rounded-xl
-              text-[#FFFFFF]
-              transition-all
-              hover:bg-white/10
+              flex h-9 w-9 shrink-0 items-center
+              justify-center rounded-xl text-[#FFFFFF]
+              transition-all hover:bg-white/10
             "
           >
             <X className="h-5 w-5" />
@@ -462,9 +549,7 @@ export default function Condominios() {
         </div>
       )}
 
-      {/* =====================================================
-          MENSAGEM DE ERRO
-      ===================================================== */}
+      {/* MENSAGEM DE ERRO */}
 
       {erro && !condominioParaExcluir && (
         <div
@@ -487,16 +572,9 @@ export default function Condominios() {
             onClick={() => setErro("")}
             aria-label="Fechar mensagem"
             className="
-              flex
-              h-9
-              w-9
-              shrink-0
-              items-center
-              justify-center
-              rounded-xl
-              text-[#FFFFFF]
-              transition-all
-              hover:bg-white/10
+              flex h-9 w-9 shrink-0 items-center
+              justify-center rounded-xl text-[#FFFFFF]
+              transition-all hover:bg-white/10
             "
           >
             <X className="h-5 w-5" />
@@ -504,9 +582,81 @@ export default function Condominios() {
         </div>
       )}
 
-      {/* =====================================================
-          FORMULÁRIO
-      ===================================================== */}
+      {/* CREDENCIAIS DO ADMINISTRADOR */}
+
+      {credenciaisAdmin && (
+        <section className={`${CARD_GLASS} space-y-5 p-5 sm:p-7`}>
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#6F9272]/30 text-white">
+              <KeyRound className="h-6 w-6" />
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                Acesso administrativo criado
+              </h2>
+
+              <p className="mt-1 text-sm leading-6 text-white">
+                Guarde estas informações e encaminhe ao responsável
+                pelo condomínio. A senha é temporária.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <CampoCredencial
+              label="Responsável"
+              valor={credenciaisAdmin.nome}
+              onCopiar={() =>
+                copiarCredencial("nome", credenciaisAdmin.nome)
+              }
+              copiado={copiado === "nome"}
+            />
+
+            <CampoCredencial
+              label="E-mail de acesso"
+              valor={credenciaisAdmin.email}
+              onCopiar={() =>
+                copiarCredencial("email", credenciaisAdmin.email)
+              }
+              copiado={copiado === "email"}
+            />
+
+            <CampoCredencial
+              label="Senha temporária"
+              valor={credenciaisAdmin.senhaTemporaria}
+              onCopiar={() =>
+                copiarCredencial(
+                  "senha",
+                  credenciaisAdmin.senhaTemporaria
+                )
+              }
+              copiado={copiado === "senha"}
+            />
+          </div>
+
+          <p className="text-xs leading-5 text-white/90">
+            No primeiro acesso, o administrador deverá alterar a
+            senha temporária. Esta senha não será exibida novamente
+            depois que você sair desta tela.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setCredenciaisAdmin(null)}
+            className="
+              inline-flex min-h-[48px] items-center justify-center
+              rounded-xl border border-white/20 bg-white/10
+              px-4 py-3 text-sm font-semibold text-white
+              transition-all hover:bg-white/15
+            "
+          >
+            Fechar credenciais
+          </button>
+        </section>
+      )}
+
+      {/* FORMULÁRIO */}
 
       {abaAtiva === "cadastro" && (
         <CondominioForm
@@ -517,26 +667,15 @@ export default function Condominios() {
         />
       )}
 
-      {/* =====================================================
-          LISTA DE CONDOMÍNIOS
-      ===================================================== */}
+      {/* LISTA DE CONDOMÍNIOS */}
 
       {abaAtiva === "lista" && (
         <>
-          {/* BARRA DE PESQUISA */}
-
           <div className="relative">
             <Search
               className="
-                pointer-events-none
-                absolute
-                left-4
-                top-1/2
-                z-10
-                h-5
-                w-5
-                -translate-y-1/2
-                text-[#FFFFFF]
+                pointer-events-none absolute left-4 top-1/2
+                z-10 h-5 w-5 -translate-y-1/2 text-[#FFFFFF]
               "
               strokeWidth={1.8}
             />
@@ -544,36 +683,19 @@ export default function Condominios() {
             <input
               type="text"
               value={busca}
-              onChange={(event) =>
-                setBusca(event.target.value)
-              }
+              onChange={(event) => setBusca(event.target.value)}
               placeholder="Buscar condomínio..."
               aria-label="Buscar condomínio"
               className="
-                h-12
-                w-full
-                rounded-full
-                border
-                border-white/15
-                bg-white/20
-                py-2
-                pl-12
-                pr-5
-                text-[14px]
-                text-[#FFFFFF]
-                backdrop-blur-2xl
-                outline-none
-                transition-all
-                placeholder:text-white/80
-                focus:border-[#6F9272]
-                focus:bg-white/25
-                focus:ring-2
-                focus:ring-[#6F9272]/30
+                h-12 w-full rounded-full border border-white/15
+                bg-white/20 py-2 pl-12 pr-5 text-[14px]
+                text-[#FFFFFF] backdrop-blur-2xl outline-none
+                transition-all placeholder:text-white/80
+                focus:border-[#6F9272] focus:bg-white/25
+                focus:ring-2 focus:ring-[#6F9272]/30
               "
             />
           </div>
-
-          {/* PAINEL PRINCIPAL */}
 
           <section
             className={`
@@ -584,14 +706,7 @@ export default function Condominios() {
             `}
           >
             <div className="mb-5">
-              <h2
-                className="
-                  text-xl
-                  font-semibold
-                  text-[#FFFFFF]
-                  sm:text-2xl
-                "
-              >
+              <h2 className="text-xl font-semibold text-[#FFFFFF] sm:text-2xl">
                 Condomínios cadastrados
               </h2>
 
@@ -599,8 +714,6 @@ export default function Condominios() {
                 Selecione a seta para consultar os dados de um condomínio.
               </p>
             </div>
-
-            {/* CARREGANDO */}
 
             {carregando && (
               <div className="border-t border-white/15 py-10 text-center">
@@ -610,61 +723,39 @@ export default function Condominios() {
               </div>
             )}
 
-            {/* LISTA VAZIA */}
+            {!carregando && condominios.length === 0 && (
+              <div className="border-t border-white/15 py-10 text-center">
+                <Building2 className="mx-auto h-8 w-8 text-[#FFFFFF]" />
 
-            {!carregando &&
-              condominios.length === 0 && (
-                <div className="border-t border-white/15 py-10 text-center">
-                  <Building2
-                    className="mx-auto h-8 w-8 text-[#FFFFFF]"
-                    strokeWidth={1.6}
-                  />
+                <h3 className="mt-4 text-lg font-semibold text-[#FFFFFF]">
+                  Nenhum condomínio cadastrado
+                </h3>
 
-                  <h3 className="mt-4 text-lg font-semibold text-[#FFFFFF]">
-                    Nenhum condomínio cadastrado
-                  </h3>
+                <p className="mt-2 text-sm text-[#FFFFFF]">
+                  Cadastre o primeiro condomínio para começar a organizar a plataforma.
+                </p>
 
-                  <p className="mt-2 text-sm text-[#FFFFFF]">
-                    Cadastre o primeiro condomínio para começar a organizar a plataforma.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={abrirCadastro}
-                    className="
-                      mt-5
-                      inline-flex
-                      min-h-[58px]
-                      items-center
-                      justify-center
-                      gap-3
-                      rounded-xl
-                      bg-[#6F9272]
-                      px-4
-                      py-3
-                      text-[14px]
-                      font-semibold
-                      text-[#FFFFFF]
-                      transition-all
-                      hover:bg-[#5C7D60]
-                    "
-                  >
-                    <ClipboardPlus className="h-[22px] w-[22px]" />
-                    Cadastrar condomínio
-                  </button>
-                </div>
-              )}
-
-            {/* PESQUISA SEM RESULTADOS */}
+                <button
+                  type="button"
+                  onClick={abrirCadastro}
+                  className="
+                    mt-5 inline-flex min-h-[58px] items-center
+                    justify-center gap-3 rounded-xl bg-[#6F9272]
+                    px-4 py-3 text-[14px] font-semibold text-white
+                    transition-all hover:bg-[#5C7D60]
+                  "
+                >
+                  <ClipboardPlus className="h-[22px] w-[22px]" />
+                  Cadastrar condomínio
+                </button>
+              </div>
+            )}
 
             {!carregando &&
               condominios.length > 0 &&
               condominiosFiltrados.length === 0 && (
                 <div className="border-t border-white/15 py-10 text-center">
-                  <Search
-                    className="mx-auto h-8 w-8 text-[#FFFFFF]"
-                    strokeWidth={1.8}
-                  />
+                  <Search className="mx-auto h-8 w-8 text-[#FFFFFF]" />
 
                   <h3 className="mt-4 font-semibold text-[#FFFFFF]">
                     Nenhum resultado encontrado
@@ -676,48 +767,33 @@ export default function Condominios() {
                 </div>
               )}
 
-            {/* LINHAS DOS CONDOMÍNIOS */}
-
-            {!carregando &&
-              condominiosFiltrados.length > 0 && (
-                <div className="border-t border-white/15">
-                  {condominiosFiltrados.map((condominio) => (
-                    <CondominioLinha
-                      key={condominio.id}
-                      condominio={condominio}
-                      expandido={
-                        condominioAberto === condominio.id
-                      }
-                      onAlternar={() =>
-                        alternarCondominio(condominio.id)
-                      }
-                      onEditar={abrirEdicao}
-                      onExcluir={abrirConfirmacaoExclusao}
-                    />
-                  ))}
-                </div>
-              )}
+            {!carregando && condominiosFiltrados.length > 0 && (
+              <div className="border-t border-white/15">
+                {condominiosFiltrados.map((condominio) => (
+                  <CondominioLinha
+                    key={condominio.id}
+                    condominio={condominio}
+                    expandido={condominioAberto === condominio.id}
+                    onAlternar={() =>
+                      alternarCondominio(condominio.id)
+                    }
+                    onEditar={abrirEdicao}
+                    onExcluir={abrirConfirmacaoExclusao}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
 
-      {/* =====================================================
-          MODAL DE EXCLUSÃO
-      ===================================================== */}
+      {/* MODAL DE EXCLUSÃO */}
 
       {condominioParaExcluir && (
         <div
           className="
-            fixed
-            inset-0
-            z-50
-            flex
-            items-center
-            justify-center
-            bg-black/45
-            px-5
-            py-6
-            backdrop-blur-sm
+            fixed inset-0 z-50 flex items-center justify-center
+            bg-black/45 px-5 py-6 backdrop-blur-sm
           "
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
@@ -729,19 +805,10 @@ export default function Condominios() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="titulo-exclusao-condominio"
-            className={`
-              ${CARD_GLASS}
-              w-full
-              max-w-md
-              p-6
-              sm:p-7
-            `}
+            className={`${CARD_GLASS} w-full max-w-md p-6 sm:p-7`}
           >
             <div className="flex items-start gap-4">
-              <LockKeyhole
-                className="h-7 w-7 shrink-0 text-[#FFFFFF]"
-                strokeWidth={1.8}
-              />
+              <LockKeyhole className="h-7 w-7 shrink-0 text-[#FFFFFF]" />
 
               <div className="min-w-0">
                 <h2
@@ -780,22 +847,11 @@ export default function Condominios() {
                 autoFocus
                 disabled={excluindo}
                 className="
-                  w-full
-                  rounded-2xl
-                  border
-                  border-white/15
-                  bg-white/10
-                  px-4
-                  py-3
-                  text-sm
-                  text-[#FFFFFF]
-                  outline-none
-                  transition-all
-                  placeholder:text-white/80
-                  focus:border-[#6F9272]
-                  focus:ring-2
-                  focus:ring-[#6F9272]/30
-                  disabled:opacity-60
+                  w-full rounded-2xl border border-white/15
+                  bg-white/10 px-4 py-3 text-sm text-[#FFFFFF]
+                  outline-none transition-all placeholder:text-white/80
+                  focus:border-[#6F9272] focus:ring-2
+                  focus:ring-[#6F9272]/30 disabled:opacity-60
                 "
               />
             </div>
@@ -812,22 +868,10 @@ export default function Condominios() {
                 onClick={fecharConfirmacaoExclusao}
                 disabled={excluindo}
                 className="
-                  inline-flex
-                  min-h-[58px]
-                  items-center
-                  justify-center
-                  rounded-xl
-                  border
-                  border-white/20
-                  bg-white/10
-                  px-4
-                  py-3
-                  text-[14px]
-                  font-semibold
-                  text-[#FFFFFF]
-                  transition-all
-                  hover:bg-white/15
-                  disabled:opacity-50
+                  inline-flex min-h-[58px] items-center justify-center
+                  rounded-xl border border-white/20 bg-white/10
+                  px-4 py-3 text-[14px] font-semibold text-[#FFFFFF]
+                  transition-all hover:bg-white/15 disabled:opacity-50
                 "
               >
                 Cancelar
@@ -838,33 +882,56 @@ export default function Condominios() {
                 onClick={confirmarExclusao}
                 disabled={excluindo}
                 className="
-                  inline-flex
-                  min-h-[58px]
-                  items-center
-                  justify-center
-                  gap-3
-                  rounded-xl
-                  bg-[#6F9272]
-                  px-4
-                  py-3
-                  text-[14px]
-                  font-semibold
-                  text-[#FFFFFF]
-                  transition-all
-                  hover:bg-[#5C7D60]
+                  inline-flex min-h-[58px] items-center justify-center
+                  gap-3 rounded-xl bg-[#6F9272] px-4 py-3
+                  text-[14px] font-semibold text-[#FFFFFF]
+                  transition-all hover:bg-[#5C7D60]
                   disabled:opacity-60
                 "
               >
                 <Trash2 className="h-[22px] w-[22px]" />
-
-                {excluindo
-                  ? "Excluindo..."
-                  : "Confirmar exclusão"}
+                {excluindo ? "Excluindo..." : "Confirmar exclusão"}
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* =========================================================
+   CAMPO DE CREDENCIAL
+========================================================= */
+
+function CampoCredencial({ label, valor, onCopiar, copiado }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold text-white/90">
+        {label}
+      </p>
+
+      <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 p-3">
+        <p className="min-w-0 flex-1 break-all text-sm font-medium text-white">
+          {valor}
+        </p>
+
+        <button
+          type="button"
+          onClick={onCopiar}
+          aria-label={`Copiar ${label}`}
+          className="
+            flex h-10 w-10 shrink-0 items-center justify-center
+            rounded-xl text-white transition-all hover:bg-white/15
+          "
+        >
+          {copiado ? (
+            <Check className="h-5 w-5" />
+          ) : (
+            <Copy className="h-5 w-5" />
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -882,9 +949,7 @@ function CondominioLinha({
 }) {
   const enderecoLinha = [
     condominio.endereco,
-    condominio.numero
-      ? `nº ${condominio.numero}`
-      : "",
+    condominio.numero ? `nº ${condominio.numero}` : "",
     condominio.cidade,
     condominio.estado,
   ]
@@ -893,9 +958,7 @@ function CondominioLinha({
 
   const enderecoCompleto = [
     condominio.endereco,
-    condominio.numero
-      ? `nº ${condominio.numero}`
-      : "",
+    condominio.numero ? `nº ${condominio.numero}` : "",
     condominio.complemento,
     condominio.bairro,
     condominio.cidade,
@@ -914,70 +977,31 @@ function CondominioLinha({
   const telefoneFormatado =
     formatarTelefone(condominio.telefone);
 
-  const cepFormatado =
-    formatarCEP(condominio.cep);
+  const cepFormatado = formatarCEP(condominio.cep);
+
+  const acessoPendente =
+    condominio.acessoAdministrativo?.status === "pendente" &&
+    !condominio.acessoAdministrativo?.adminUid;
 
   return (
     <div className="border-b border-white/15 last:border-b-0">
-
-      {/* ===================================================
-          LINHA PRINCIPAL
-      =================================================== */}
-
-      <div
-        className="
-          flex
-          min-h-[72px]
-          items-center
-          gap-3
-          py-3
-          sm:gap-5
-        "
-      >
+      <div className="flex min-h-[72px] items-center gap-3 py-3 sm:gap-5">
         <div className="min-w-0 flex-1">
-          <p
-            className="
-              break-words
-              text-base
-              font-semibold
-              leading-6
-              text-[#FFFFFF]
-              sm:text-lg
-            "
-          >
+          <p className="break-words text-base font-semibold leading-6 text-[#FFFFFF] sm:text-lg">
             {condominio.nome || "Condomínio sem nome"}
           </p>
 
-          {/* ENDEREÇO RESUMIDO SÓ QUANDO FECHADO */}
-
           {!expandido && (
-            <p
-              className="
-                mt-1
-                break-words
-                text-xs
-                leading-5
-                text-[#FFFFFF]
-                sm:text-[13px]
-              "
-            >
+            <p className="mt-1 break-words text-xs leading-5 text-[#FFFFFF] sm:text-[13px]">
               {enderecoLinha || "Endereço não informado"}
             </p>
           )}
         </div>
 
-        {/* STATUS */}
-
         <span
           className={`
-            shrink-0
-            rounded-full
-            border
-            px-3
-            py-1.5
-            text-xs
-            font-semibold
-            text-[#FFFFFF]
+            shrink-0 rounded-full border px-3 py-1.5
+            text-xs font-semibold text-[#FFFFFF]
             ${
               condominio.ativo
                 ? "border-[#6F9272] bg-[#6F9272]"
@@ -987,8 +1011,6 @@ function CondominioLinha({
         >
           {condominio.ativo ? "Ativo" : "Inativo"}
         </span>
-
-        {/* SETA */}
 
         <button
           type="button"
@@ -1000,25 +1022,14 @@ function CondominioLinha({
               : `Ver resumo de ${condominio.nome}`
           }
           className="
-            flex
-            h-10
-            w-10
-            shrink-0
-            items-center
-            justify-center
-            rounded-xl
-            text-[#FFFFFF]
-            transition-all
-            duration-300
+            flex h-10 w-10 shrink-0 items-center justify-center
+            rounded-xl text-[#FFFFFF] transition-all duration-300
             hover:bg-white/10
           "
         >
           <ChevronDown
             className={`
-              h-5
-              w-5
-              transition-transform
-              duration-300
+              h-5 w-5 transition-transform duration-300
               ${expandido ? "rotate-180" : ""}
             `}
             strokeWidth={1.8}
@@ -1026,15 +1037,21 @@ function CondominioLinha({
         </button>
       </div>
 
-      {/* ===================================================
-          RESUMO EXPANSÍVEL
-          O endereço completo aparece aqui uma única vez.
-      =================================================== */}
-
       {expandido && (
         <div className="space-y-5 pb-5 pt-2">
+          {acessoPendente && (
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+              <p className="text-sm font-semibold text-white">
+                Acesso administrativo pendente
+              </p>
 
-          {/* CPF / CNPJ */}
+              <p className="mt-1 text-xs leading-5 text-white/90">
+                O condomínio está cadastrado, mas a conta do
+                administrador ainda não foi criada. Selecione
+                Editar para revisar os dados e tentar novamente.
+              </p>
+            </div>
+          )}
 
           {documentoFormatado && (
             <InfoLinha
@@ -1042,8 +1059,6 @@ function CondominioLinha({
               valor={documentoFormatado}
             />
           )}
-
-          {/* ENDEREÇO COMPLETO ABAIXO DO DOCUMENTO */}
 
           {enderecoCompleto && (
             <div className="flex items-start gap-3">
@@ -1061,27 +1076,17 @@ function CondominioLinha({
             </div>
           )}
 
-          {/* CEP E PAÍS */}
-
           {(cepFormatado || condominio.pais) && (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               {cepFormatado && (
-                <InfoLinha
-                  label="CEP"
-                  valor={cepFormatado}
-                />
+                <InfoLinha label="CEP" valor={cepFormatado} />
               )}
 
               {condominio.pais && (
-                <InfoLinha
-                  label="País"
-                  valor={condominio.pais}
-                />
+                <InfoLinha label="País" valor={condominio.pais} />
               )}
             </div>
           )}
-
-          {/* CONTATO */}
 
           {(telefoneFormatado || condominio.email) && (
             <div className="flex flex-wrap gap-x-6 gap-y-4">
@@ -1119,18 +1124,10 @@ function CondominioLinha({
             </div>
           )}
 
-          {/* ESTRUTURA */}
-
           <div
             className="
-              flex
-              flex-wrap
-              items-center
-              gap-x-6
-              gap-y-3
-              border-y
-              border-white/15
-              py-4
+              flex flex-wrap items-center gap-x-6 gap-y-3
+              border-y border-white/15 py-4
             "
           >
             <ResumoNumero
@@ -1158,8 +1155,6 @@ function CondominioLinha({
             />
           </div>
 
-          {/* ÁREAS COMUNS */}
-
           {areasComuns.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-[#FFFFFF]">
@@ -1171,15 +1166,9 @@ function CondominioLinha({
                   <span
                     key={area}
                     className="
-                      rounded-full
-                      border
-                      border-white/15
-                      bg-white/10
-                      px-3
-                      py-1.5
-                      text-xs
-                      font-medium
-                      text-[#FFFFFF]
+                      rounded-full border border-white/15
+                      bg-white/10 px-3 py-1.5 text-xs
+                      font-medium text-[#FFFFFF]
                     "
                   >
                     {area}
@@ -1189,29 +1178,15 @@ function CondominioLinha({
             </div>
           )}
 
-          {/* AÇÕES */}
-
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/15 pt-4">
             <button
               type="button"
               onClick={() => onEditar(condominio)}
               className="
-                inline-flex
-                min-h-[58px]
-                items-center
-                justify-center
-                gap-3
-                rounded-xl
-                border
-                border-white/20
-                bg-white/10
-                px-4
-                py-3
-                text-[14px]
-                font-semibold
-                text-[#FFFFFF]
-                transition-all
-                hover:bg-white/15
+                inline-flex min-h-[58px] items-center justify-center
+                gap-3 rounded-xl border border-white/20 bg-white/10
+                px-4 py-3 text-[14px] font-semibold text-[#FFFFFF]
+                transition-all hover:bg-white/15
               "
             >
               <Pencil className="h-[20px] w-[20px]" />
@@ -1222,20 +1197,10 @@ function CondominioLinha({
               type="button"
               onClick={() => onExcluir(condominio)}
               className="
-                inline-flex
-                min-h-[58px]
-                items-center
-                justify-center
-                gap-3
-                rounded-xl
-                bg-[#6F9272]
-                px-4
-                py-3
-                text-[14px]
-                font-semibold
-                text-[#FFFFFF]
-                transition-all
-                hover:bg-[#5C7D60]
+                inline-flex min-h-[58px] items-center justify-center
+                gap-3 rounded-xl bg-[#6F9272] px-4 py-3
+                text-[14px] font-semibold text-[#FFFFFF]
+                transition-all hover:bg-[#5C7D60]
               "
             >
               <Trash2 className="h-[20px] w-[20px]" />
@@ -1255,10 +1220,7 @@ function CondominioLinha({
 function InfoLinha({ label, valor }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs text-[#FFFFFF]">
-        {label}
-      </p>
-
+      <p className="text-xs text-[#FFFFFF]">{label}</p>
       <p className="mt-1 break-words text-sm text-[#FFFFFF]">
         {valor}
       </p>
@@ -1273,17 +1235,11 @@ function InfoLinha({ label, valor }) {
 function ResumoNumero({ icon, label, valor }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="shrink-0 text-[#FFFFFF]">
-        {icon}
-      </span>
-
+      <span className="shrink-0 text-[#FFFFFF]">{icon}</span>
       <span className="text-sm font-semibold text-[#FFFFFF]">
         {valor}
       </span>
-
-      <span className="text-sm text-[#FFFFFF]">
-        {label}
-      </span>
+      <span className="text-sm text-[#FFFFFF]">{label}</span>
     </div>
   );
 }

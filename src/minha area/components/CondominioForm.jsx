@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import {
   Building2,
@@ -36,6 +37,7 @@ const FORMULARIO_INICIAL = {
   documento: "",
   telefone: "",
   email: "",
+  nomeResponsavelAdmin: "",
   emailResponsavelAdmin: "",
 
   cep: "",
@@ -77,6 +79,8 @@ export default function CondominioForm({
     setDados({
       ...FORMULARIO_INICIAL,
       ...initialData,
+      nomeResponsavelAdmin:
+        initialData.nomeResponsavelAdmin || "",
       emailResponsavelAdmin:
         initialData.emailResponsavelAdmin || "",
       areasComuns: Array.isArray(initialData.areasComuns)
@@ -227,6 +231,9 @@ export default function CondominioForm({
 
     onSubmit?.({
       ...dados,
+      nomeResponsavelAdmin: String(
+        dados.nomeResponsavelAdmin || ""
+      ).trim(),
       email: String(dados.email || "").trim().toLowerCase(),
       emailResponsavelAdmin: String(
         dados.emailResponsavelAdmin || ""
@@ -276,7 +283,6 @@ export default function CondominioForm({
       />
 
       <div className="relative z-10 space-y-8">
-
         {/* =====================================================
             DADOS DO CONDOMÍNIO
         ===================================================== */}
@@ -327,6 +333,22 @@ export default function CondominioForm({
 
             <div className="md:col-span-2">
               <Input
+                label="Nome do responsável administrativo"
+                name="nomeResponsavelAdmin"
+                value={dados.nomeResponsavelAdmin}
+                onChange={alterarCampo}
+                placeholder="Nome completo do administrador"
+                required
+              />
+
+              <p className="mt-2 text-xs leading-5 text-white/80">
+                Informe o nome completo da pessoa que será responsável
+                pela administração deste condomínio.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <Input
                 label="E-mail do responsável administrativo"
                 name="emailResponsavelAdmin"
                 type="email"
@@ -337,8 +359,9 @@ export default function CondominioForm({
               />
 
               <p className="mt-2 text-xs leading-5 text-white/80">
-                Este endereço será utilizado para configurar o acesso administrativo.
-                Ele pode ser diferente do e-mail geral do condomínio.
+                Este endereço será utilizado para configurar o acesso
+                administrativo. Ele pode ser diferente do e-mail geral
+                do condomínio.
               </p>
             </div>
           </div>

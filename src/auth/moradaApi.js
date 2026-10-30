@@ -1,3 +1,4 @@
+
 import { auth } from "@/auth/firebase";
 
 const API_URL =
@@ -7,6 +8,7 @@ const SUPER_ADMIN_UID =
   "sr6kVVHbavZQqpqbTDfwaaccmgh2";
 
 export async function criarContaAdminTemporaria({
+  condominioId,
   email,
   nome,
 }) {
@@ -24,13 +26,27 @@ export async function criarContaAdminTemporaria({
     );
   }
 
+  const idNormalizado = String(condominioId || "").trim();
   const emailNormalizado = String(email || "")
     .trim()
     .toLowerCase();
+  const nomeNormalizado = String(nome || "").trim();
+
+  if (!idNormalizado) {
+    throw new Error(
+      "Não foi possível identificar o condomínio para vincular o administrador."
+    );
+  }
 
   if (!emailNormalizado) {
     throw new Error(
       "Informe o e-mail do responsável administrativo."
+    );
+  }
+
+  if (!nomeNormalizado) {
+    throw new Error(
+      "Informe o nome do responsável administrativo."
     );
   }
 
@@ -39,29 +55,25 @@ export async function criarContaAdminTemporaria({
   let resposta;
 
   try {
-    resposta = await fetch(
-      `${API_URL}/admin/create-user`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: emailNormalizado,
-          nome: String(nome || "").trim(),
-        }),
-      }
-    );
+    resposta = await fetch(`${API_URL}/admin/create-user`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        condominioId: idNormalizado,
+        email: emailNormalizado,
+        nome: nomeNormalizado,
+      }),
+    });
   } catch {
     throw new Error(
       "Não foi possível conectar ao serviço de criação de usuários."
     );
   }
 
-  const resultado = await resposta
-    .json()
-    .catch(() => ({}));
+  const resultado = await resposta.json().catch(() => ({}));
 
   if (!resposta.ok) {
     const mensagens = {
@@ -83,8 +95,38 @@ export async function criarContaAdminTemporaria({
       GOOGLE_PERMISSION_DENIED:
         "O Google Cloud não autorizou a criação da conta. Precisamos revisar as permissões do serviço.",
 
+      GOOGLE_OAUTH_FAILED:
+        "Não foi possível autenticar o serviço do Google.",
+
       FIREBASE_CREATE_FAILED:
         "O Firebase não conseguiu criar a conta administrativa.",
+
+      INVALID_EMAIL:
+        "O e-mail do responsável administrativo é inválido.",
+
+      INVALID_CONDO_ID:
+        "O identificador do condomínio está ausente ou inválido.",
+
+      CONDO_NOT_FOUND:
+        "O condomínio não foi encontrado no Firestore.",
+
+      CONDO_ADMIN_DATA_MISSING:
+        "O condomínio precisa ter nome, nome do responsável e e-mail administrativo cadastrados.",
+
+      ADMIN_ALREADY_CREATED:
+        "Este condomínio já possui um acesso administrativo registrado.",
+
+      PROFILE_CREATE_FAILED:
+        "A conta foi iniciada, mas não foi possível criar o perfil administrativo. Verifique o Firebase antes de tentar novamente.",
+
+      FIRESTORE_READ_FAILED:
+        "Não foi possível consultar os dados do condomínio no Firestore.",
+
+      CONDO_ACCESS_UPDATE_FAILED:
+        "Não foi possível atualizar os dados de controle do acesso administrativo.",
+
+      INVALID_JSON:
+        "O serviço recebeu dados inválidos.",
     };
 
     throw new Error(
@@ -93,10 +135,7 @@ export async function criarContaAdminTemporaria({
     );
   }
 
-  if (
-    !resultado.uid ||
-    !resultado.senhaTemporaria
-  ) {
+  if (!resultado.uid || !resultado.senhaTemporaria) {
     throw new Error(
       "O serviço respondeu sem confirmar os dados de acesso."
     );

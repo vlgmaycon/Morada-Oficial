@@ -1,3 +1,4 @@
+
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
@@ -6,6 +7,7 @@ import {
   Headset,
   Settings,
   LogOut,
+  Users,
 } from "lucide-react";
 
 import useAuth from "@/auth/AuthContext";
@@ -27,6 +29,16 @@ const items = [
     path: "/minha-area/chamados",
     label: "Chamados",
     icon: Headset,
+  },
+  {
+    path: "/minha-area/admin",
+    label: "Admin",
+    icon: Building2,
+  },
+  {
+    path: "/minha-area/morador",
+    label: "Morador",
+    icon: Users,
   },
   {
     path: "/minha-area/configuracoes",

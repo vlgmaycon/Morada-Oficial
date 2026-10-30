@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -10,6 +11,9 @@ import Condominios from "@/minha area/pages/Condominios";
 import Chamados from "@/minha area/pages/Chamados";
 import Configuracoes from "@/minha area/pages/Configuracoes";
 
+import MinhaAreaAdmin from "@/minha area/components/MinhaAreaAdmin";
+import MinhaAreaMorador from "@/minha area/components/MinhaAreaMorador";
+
 export default function MinhaAreaRoutes() {
   return (
     <ProtectedSuperAdmin>
@@ -19,19 +23,51 @@ export default function MinhaAreaRoutes() {
           <Route index element={<Index />} />
 
           {/* Dashboard */}
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route
+            path="dashboard"
+            element={<Dashboard />}
+          />
 
           {/* Condomínios */}
-          <Route path="condominios" element={<Condominios />} />
+          <Route
+            path="condominios"
+            element={<Condominios />}
+          />
 
           {/* Chamados */}
-          <Route path="chamados" element={<Chamados />} />
+          <Route
+            path="chamados"
+            element={<Chamados />}
+          />
+
+          {/* Administradores */}
+          <Route
+            path="admin"
+            element={<MinhaAreaAdmin />}
+          />
+
+          {/* Moradores */}
+          <Route
+            path="morador"
+            element={<MinhaAreaMorador />}
+          />
 
           {/* Configurações */}
-          <Route path="configuracoes" element={<Configuracoes />} />
+          <Route
+            path="configuracoes"
+            element={<Configuracoes />}
+          />
 
           {/* Página não encontrada */}
-          <Route path="*" element={<Navigate to="/minha-area" replace />} />
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to="/minha-area"
+                replace
+              />
+            }
+          />
         </Route>
       </Routes>
     </ProtectedSuperAdmin>

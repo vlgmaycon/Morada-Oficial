@@ -1,99 +1,86 @@
+
 import React from "react";
+
 import {
   Routes,
   Route,
   Navigate,
 } from "react-router-dom";
 
-import Login from "@/app/pages/Login";
+/* =================================================
+   AUTENTICAÇÃO
+================================================= */
+
+import Login from "@/app/pages/login";
 import ForgotPassword from "@/app/pages/ForgotPassword";
 import Register from "@/app/pages/Register";
 import ResetPassword from "@/app/pages/ResetPassword";
+
+/* =================================================
+   ÁREAS DO APLICATIVO
+================================================= */
 
 import AdminRoutes from "@/admin/routes/AdminRoutes";
 import MoradorRoutes from "@/morador/routes/MoradorRoutes";
 import MinhaAreaRoutes from "@/minha area/routes/MinhaAreaRoutes";
 
+/* =================================================
+   ROTAS PRINCIPAIS
+================================================= */
+
 export default function AppRoutes() {
   return (
     <Routes>
 
-      {/* =================================================
-          AUTENTICAÇÃO
-      ================================================= */}
+      {/* AUTENTICAÇÃO */}
 
       <Route
         path="/"
-        element={
-          <Login />
-        }
+        element={<Login />}
       />
 
       <Route
         path="/login"
-        element={
-          <Login />
-        }
+        element={<Login />}
       />
 
       <Route
         path="/forgot-password"
-        element={
-          <ForgotPassword />
-        }
+        element={<ForgotPassword />}
       />
 
       <Route
         path="/register"
-        element={
-          <Register />
-        }
+        element={<Register />}
       />
 
       <Route
         path="/reset-password"
-        element={
-          <ResetPassword />
-        }
+        element={<ResetPassword />}
       />
 
-      {/* =================================================
-          ÁREA ADMINISTRATIVA
-      ================================================= */}
+      {/* ÁREA ADMINISTRATIVA */}
 
       <Route
         path="/admin/*"
-        element={
-          <AdminRoutes />
-        }
+        element={<AdminRoutes />}
       />
 
-      {/* =================================================
-          ÁREA DO MORADOR
-      ================================================= */}
+      {/* ÁREA DO MORADOR */}
 
       <Route
         path="/morador/*"
-        element={
-          <MoradorRoutes />
-        }
+        element={<MoradorRoutes />}
       />
 
-      {/* =================================================
-          MINHA ÁREA
-          Exclusiva do Super Admin
-      ================================================= */}
+      {/* MINHA ÁREA — SUPER ADMIN */}
 
       <Route
         path="/minha-area/*"
-        element={
-          <MinhaAreaRoutes />
-        }
+        element={<MinhaAreaRoutes />}
       />
 
-      {/* =================================================
-          ROTA NÃO ENCONTRADA
-      ================================================= */}
+      {/* ROTA NÃO ENCONTRADA */}
 
       <Route
         path="*"

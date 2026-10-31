@@ -1,3 +1,4 @@
+
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
@@ -14,7 +15,20 @@ import {
 } from "lucide-react";
 
 import useAuth from "@/auth/AuthContext";
+
 import logoAdmin from "@/assets/logo-morada-admin.png";
+import logoMorada from "@/assets/logo-morada-app.png";
+
+/* ======================================================
+   IDENTIDADE VISUAL MORADA OFICIAL
+====================================================== */
+
+const VERDE = "#6F9272";
+const VERDE_HOVER = "#5C7D60";
+
+/* ======================================================
+   MENU ADMINISTRATIVO
+====================================================== */
 
 const items = [
   {
@@ -60,9 +74,17 @@ const items = [
   },
 ];
 
+/* ======================================================
+   SIDEBAR ADMIN
+====================================================== */
+
 export default function AdminSidebar() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  /* ====================================================
+     SAIR DA CONTA
+  ==================================================== */
 
   function handleLogout() {
     logout();
@@ -86,68 +108,102 @@ export default function AdminSidebar() {
         overflow-hidden
         rounded-[28px]
         border
-        border-white/10
-        bg-[#2A3530]/45
+        border-white/15
+        bg-[#18241F]/55
+        shadow-[0_18px_50px_rgba(0,0,0,0.28)]
         backdrop-blur-2xl
-        shadow-[0_18px_50px_rgba(0,0,0,0.20)]
         lg:flex
       "
     >
-      {/* =====================================================
-          EFEITO DE VIDRO
-      ===================================================== */}
+      {/* =================================================
+          CAMADA DE VIDRO
+      ================================================= */}
 
       <div
+        aria-hidden="true"
         className="
           pointer-events-none
           absolute
           inset-0
+          z-0
           bg-gradient-to-b
-          from-white/[0.08]
-          via-white/[0.02]
-          to-black/[0.12]
+          from-white/[0.10]
+          via-white/[0.025]
+          to-black/[0.20]
         "
       />
 
-      {/* =====================================================
+      {/* BRILHO SUTIL */}
+
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-x-0
+          top-0
+          z-0
+          h-40
+          bg-gradient-to-b
+          from-white/[0.045]
+          to-transparent
+        "
+      />
+
+      {/* =================================================
           LOGO
-      ===================================================== */}
+      ================================================= */}
 
       <div
         className="
           relative
-          shrink-0
+          z-10
           flex
+          shrink-0
+          items-center
           justify-center
           px-4
-          pt-5
           pb-7
+          pt-6
         "
       >
         <img
           src={logoAdmin}
           alt="Morada Administração"
+          onError={(event) => {
+            const imagem = event.currentTarget;
+
+            if (imagem.dataset.fallbackApplied !== "true") {
+              imagem.dataset.fallbackApplied = "true";
+              imagem.src = logoMorada;
+            }
+          }}
           className="
+            block
+            h-auto
             w-full
-            max-w-[235px]
+            max-w-[225px]
             object-contain
-            drop-shadow-[0_8px_22px_rgba(0,0,0,0.28)]
+            drop-shadow-[0_8px_24px_rgba(0,0,0,0.30)]
           "
         />
       </div>
 
-      {/* =====================================================
-          MENU
-      ===================================================== */}
+      {/* =================================================
+          NAVEGAÇÃO
+      ================================================= */}
 
       <nav
+        aria-label="Menu administrativo"
         className="
           relative
+          z-10
+          min-h-0
           flex-1
           space-y-2
           overflow-y-auto
           px-4
-          pb-4
+          pb-5
         "
       >
         {items.map((item) => {
@@ -159,66 +215,83 @@ export default function AdminSidebar() {
               to={item.path}
               end={item.end}
               className={({ isActive }) =>
-                isActive
-                  ? `
-                    flex
-                    w-full
-                    items-center
-                    gap-4
-                    rounded-xl
-                    bg-[#89A58F]
-                    px-4
-                    py-3
-                    text-[13px]
-                    font-semibold
-                    text-white
-                    shadow-[0_8px_22px_rgba(137,165,143,0.18)]
-                    transition-all
-                    duration-300
-                  `
-                  : `
-                    flex
-                    w-full
-                    items-center
-                    gap-4
-                    rounded-xl
-                    px-4
-                    py-3
-                    text-[13px]
-                    font-medium
-                    text-white/80
-                    transition-all
-                    duration-300
-                    hover:bg-white/[0.07]
-                    hover:text-white
-                  `
+                `
+                  group
+                  flex
+                  min-h-[46px]
+                  w-full
+                  items-center
+                  gap-4
+                  rounded-xl
+                  px-4
+                  py-3
+                  text-[13px]
+                  transition-all
+                  duration-300
+                  focus-visible:outline-none
+                  focus-visible:ring-2
+                  focus-visible:ring-[#6F9272]
+                  focus-visible:ring-offset-2
+                  focus-visible:ring-offset-transparent
+                  ${
+                    isActive
+                      ? `
+                        bg-[#6F9272]
+                        font-semibold
+                        text-white
+                        shadow-[0_8px_22px_rgba(111,146,114,0.25)]
+                      `
+                      : `
+                        bg-transparent
+                        font-medium
+                        text-white/80
+                        hover:bg-white/[0.09]
+                        hover:text-white
+                      `
+                  }
+                `
               }
             >
-              <Icon
-                className="
-                  h-[20px]
-                  w-[20px]
-                  shrink-0
-                "
-                strokeWidth={1.8}
-              />
+              {({ isActive }) => (
+                <>
+                  <Icon
+                    className={`
+                      h-5
+                      w-5
+                      shrink-0
+                      transition-colors
+                      duration-300
+                      ${
+                        isActive
+                          ? "text-white"
+                          : "text-white/85 group-hover:text-white"
+                      }
+                    `}
+                    strokeWidth={1.8}
+                  />
 
-              <span>{item.label}</span>
+                  <span className="truncate">
+                    {item.label}
+                  </span>
+                </>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* =====================================================
-          SAIR
-      ===================================================== */}
+      {/* =================================================
+          BOTÃO SAIR
+      ================================================= */}
 
       <div
         className="
           relative
+          z-10
           shrink-0
           px-4
-          py-5
+          pb-5
+          pt-3
         "
       >
         <button
@@ -226,26 +299,31 @@ export default function AdminSidebar() {
           onClick={handleLogout}
           className="
             flex
+            min-h-[46px]
             w-full
             items-center
             justify-center
-            gap-2
+            gap-3
             rounded-xl
-            bg-[#89A58F]
+            bg-[#6F9272]
             px-4
             py-3
             text-[13px]
             font-semibold
             text-white
-            shadow-[0_8px_22px_rgba(137,165,143,0.14)]
+            shadow-[0_8px_22px_rgba(111,146,114,0.18)]
             transition-all
             duration-300
-            hover:bg-[#78967F]
+            hover:bg-[#5C7D60]
+            hover:shadow-[0_8px_24px_rgba(111,146,114,0.28)]
             active:scale-[0.98]
+            focus-visible:outline-none
+            focus-visible:ring-2
+            focus-visible:ring-white/70
           "
         >
           <LogOut
-            className="h-4 w-4"
+            className="h-[18px] w-[18px]"
             strokeWidth={1.8}
           />
 

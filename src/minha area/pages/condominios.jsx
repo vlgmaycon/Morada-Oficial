@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -21,7 +20,12 @@ import {
 } from "lucide-react";
 
 import { auth } from "@/auth/firebase";
-import { criarContaAdminTemporaria } from "@/auth/moradaApi";
+
+import {
+  criarContaAdminTemporaria,
+  atualizarUsuarioAdministrativo,
+  enviarRedefinicaoSenha,
+} from "@/auth/moradaApi";
 
 import CondominioForm from "../components/CondominioForm";
 
@@ -81,6 +85,9 @@ export default function Condominios() {
     useState(null);
 
   const [copiado, setCopiado] = useState("");
+
+  const [enviandoRedefinicaoUid, setEnviandoRedefinicaoUid] =
+    useState("");
 
   /* =========================================================
      CARREGAR CONDOMÍNIOS
@@ -151,6 +158,49 @@ export default function Condominios() {
   }
 
   /* =========================================================
+     ENVIAR REDEFINIÇÃO DE SENHA AO ADMINISTRADOR
+  ========================================================= */
+
+  async function enviarRedefinicaoAdmin(condominio) {
+    const adminUid = String(
+      condominio?.acessoAdministrativo?.adminUid || ""
+    ).trim();
+
+    if (!adminUid) {
+      setErro(
+        "Não foi encontrado um acesso administrativo vinculado a este condomínio."
+      );
+      return;
+    }
+
+    setEnviandoRedefinicaoUid(adminUid);
+    setErro("");
+    setSucesso("");
+
+    try {
+      const resultado = await enviarRedefinicaoSenha({
+        uid: adminUid,
+      });
+
+      setSucesso(
+        `E-mail de redefinição de senha enviado para ${resultado.email}.`
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao enviar redefinição de senha:",
+        error
+      );
+
+      setErro(
+        error?.message ||
+          "Não foi possível enviar o e-mail de redefinição de senha."
+      );
+    } finally {
+      setEnviandoRedefinicaoUid("");
+    }
+  }
+
+  /* =========================================================
      COPIAR CREDENCIAIS
   ========================================================= */
 
@@ -164,6 +214,7 @@ export default function Condominios() {
       }, 2000);
     } catch (error) {
       console.error("Erro ao copiar:", error);
+
       setErro(
         "Não foi possível copiar automaticamente. Selecione e copie o conteúdo manualmente."
       );
@@ -184,54 +235,113 @@ export default function Condominios() {
       if (condominioEditando?.id) {
         const { id, ...dadosAtualizacao } = dados;
 
+        /*
+         * Primeiro atualiza os dados gerais do condomínio.
+         */
+
         await editarCondominio(
           condominioEditando.id,
           dadosAtualizacao
         );
 
         /*
-         * Se o condomínio ainda estiver com acesso pendente,
-         * a edição também permite tentar criar o administrador.
+         * Verifica se já existe uma conta administrativa
+         * vinculada ao condomínio.
          */
-        const acessoPendente =
-          condominioEditando.acessoAdministrativo?.status ===
-            "pendente" &&
-          !condominioEditando.acessoAdministrativo?.adminUid;
 
-        if (acessoPendente) {
+        const adminUid = String(
+          condominioEditando.acessoAdministrativo?.adminUid || ""
+        ).trim();
+
+        if (adminUid) {
+          /*
+           * Atualiza a conta administrativa existente.
+           *
+           * A operação utiliza o UID original.
+           * Não cria uma nova conta no Firebase.
+           *
+           * O Worker atualiza:
+           * - Firebase Authentication;
+           * - Perfil em usuarios/{uid};
+           * - Dados do responsável no condomínio.
+           */
+
           try {
-            await gerarAcessoAdministrador({
-              condominioId: condominioEditando.id,
+            await atualizarUsuarioAdministrativo({
+              uid: adminUid,
               nome: dados.nomeResponsavelAdmin,
               email: dados.emailResponsavelAdmin,
             });
 
             setSucesso(
-              "Condomínio atualizado e acesso administrativo criado com sucesso."
+              "Condomínio e acesso administrativo atualizados com sucesso."
             );
-          } catch (erroAcesso) {
+
+            setErro("");
+          } catch (erroSincronizacao) {
             console.error(
-              "Erro ao criar acesso administrativo:",
-              erroAcesso
+              "Erro ao sincronizar administrador:",
+              erroSincronizacao
             );
 
             setSucesso(
-              "Condomínio atualizado. Porém, o acesso administrativo continua pendente. Você poderá tentar novamente editando este condomínio."
+              "Os dados do condomínio foram atualizados, mas a conta administrativa precisa ser sincronizada."
             );
 
             setErro(
-              erroAcesso.message ||
-                "Não foi possível criar o acesso administrativo."
+              erroSincronizacao?.message ||
+                "Não foi possível sincronizar o nome e o e-mail do administrador. Você pode tentar novamente editando o condomínio."
             );
           }
         } else {
-          setSucesso("Condomínio atualizado com sucesso.");
+          /*
+           * Se ainda não existe uma conta administrativa,
+           * permite criar o acesso quando estiver pendente.
+           */
+
+          const acessoPendente =
+            condominioEditando.acessoAdministrativo?.status ===
+              "pendente" &&
+            !condominioEditando.acessoAdministrativo?.adminUid;
+
+          if (acessoPendente) {
+            try {
+              await gerarAcessoAdministrador({
+                condominioId: condominioEditando.id,
+                nome: dados.nomeResponsavelAdmin,
+                email: dados.emailResponsavelAdmin,
+              });
+
+              setSucesso(
+                "Condomínio atualizado e acesso administrativo criado com sucesso."
+              );
+
+              setErro("");
+            } catch (erroAcesso) {
+              console.error(
+                "Erro ao criar acesso administrativo:",
+                erroAcesso
+              );
+
+              setSucesso(
+                "Condomínio atualizado. Porém, o acesso administrativo continua pendente. Você poderá tentar novamente editando este condomínio."
+              );
+
+              setErro(
+                erroAcesso.message ||
+                  "Não foi possível criar o acesso administrativo."
+              );
+            }
+          } else {
+            setSucesso("Condomínio atualizado com sucesso.");
+          }
         }
       } else {
         /*
          * Primeiro salva o condomínio.
          * O ID retornado será usado para vincular o administrador.
          */
+
         const novoCondominio = await criarCondominio(dados);
 
         if (!novoCondominio?.id) {
@@ -244,6 +354,7 @@ export default function Condominios() {
          * Depois cria a conta administrativa no Firebase.
          * Se falhar, não tenta cadastrar o condomínio novamente.
          */
+
         try {
           await gerarAcessoAdministrador({
             condominioId: novoCondominio.id,
@@ -254,6 +365,8 @@ export default function Condominios() {
           setSucesso(
             "Condomínio cadastrado e acesso administrativo criado com sucesso."
           );
+
+          setErro("");
         } catch (erroAcesso) {
           console.error(
             "Condomínio salvo, mas o acesso administrativo falhou:",
@@ -779,6 +892,8 @@ export default function Condominios() {
                     }
                     onEditar={abrirEdicao}
                     onExcluir={abrirConfirmacaoExclusao}
+                    onEnviarRedefinicao={enviarRedefinicaoAdmin}
+                    enviandoRedefinicaoUid={enviandoRedefinicaoUid}
                   />
                 ))}
               </div>
@@ -946,6 +1061,8 @@ function CondominioLinha({
   onAlternar,
   onEditar,
   onExcluir,
+  onEnviarRedefinicao,
+  enviandoRedefinicaoUid,
 }) {
   const enderecoLinha = [
     condominio.endereco,
@@ -979,9 +1096,27 @@ function CondominioLinha({
 
   const cepFormatado = formatarCEP(condominio.cep);
 
+  const adminUid = String(
+    condominio.acessoAdministrativo?.adminUid || ""
+  ).trim();
+
+  const nomeResponsavelAdmin =
+    condominio.nomeResponsavelAdmin ||
+    condominio.acessoAdministrativo?.nomeResponsavelAdmin ||
+    "";
+
+  const emailResponsavelAdmin =
+    condominio.emailResponsavelAdmin ||
+    condominio.acessoAdministrativo?.emailResponsavelAdmin ||
+    "";
+
+  const enviandoRedefinicao =
+    Boolean(adminUid) &&
+    enviandoRedefinicaoUid === adminUid;
+
   const acessoPendente =
     condominio.acessoAdministrativo?.status === "pendente" &&
-    !condominio.acessoAdministrativo?.adminUid;
+    !adminUid;
 
   return (
     <div className="border-b border-white/15 last:border-b-0">
@@ -1119,6 +1254,65 @@ function CondominioLinha({
                       {condominio.email}
                     </p>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* RESPONSÁVEL ADMINISTRATIVO */}
+
+          {(adminUid ||
+            nomeResponsavelAdmin ||
+            emailResponsavelAdmin) && (
+            <div className="space-y-4 rounded-2xl border border-white/15 bg-white/10 p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/90">
+                  Responsável administrativo
+                </p>
+
+                {nomeResponsavelAdmin && (
+                  <p className="mt-2 break-words text-sm font-semibold text-white">
+                    {nomeResponsavelAdmin}
+                  </p>
+                )}
+
+                {emailResponsavelAdmin && (
+                  <p className="mt-1 break-all text-sm text-white/90">
+                    {emailResponsavelAdmin}
+                  </p>
+                )}
+              </div>
+
+              {adminUid && (
+                <div className="border-t border-white/15 pt-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onEnviarRedefinicao(condominio)
+                    }
+                    disabled={enviandoRedefinicao}
+                    className="
+                      inline-flex min-h-[48px] w-full
+                      items-center justify-center gap-3
+                      rounded-xl bg-[#6F9272] px-4 py-3
+                      text-sm font-semibold text-white
+                      transition-all hover:bg-[#5C7D60]
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
+                      sm:w-auto
+                    "
+                  >
+                    <KeyRound className="h-5 w-5" />
+
+                    {enviandoRedefinicao
+                      ? "Enviando e-mail..."
+                      : "Enviar redefinição de senha"}
+                  </button>
+
+                  <p className="mt-2 text-xs leading-5 text-white/80">
+                    O link será enviado ao e-mail atualmente
+                    cadastrado na conta do administrador.
+                  </p>
                 </div>
               )}
             </div>

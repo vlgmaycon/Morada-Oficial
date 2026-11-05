@@ -24,7 +24,7 @@ const MENSAGENS_ERRO = {
     "Esta operação é permitida somente ao Super Admin.",
 
   SUPER_ADMIN_PROTECTED:
-    "O cadastro do Super Admin não pode ser alterado por esta operação.",
+    "O cadastro do Super Admin não pode ser alterado ou excluído.",
 
   SERVER_NOT_CONFIGURED:
     "O serviço ainda não está completamente configurado.",
@@ -45,13 +45,13 @@ const MENSAGENS_ERRO = {
     "Informe um nome válido para o usuário.",
 
   INVALID_USER_ID:
-    "Não foi possível identificar o usuário que será atualizado.",
+    "Não foi possível identificar o usuário.",
 
   INVALID_CONDO_ID:
     "O identificador do condomínio está ausente ou inválido.",
 
   CONDO_NOT_FOUND:
-    "O condomínio vinculado ao administrador não foi encontrado.",
+    "O condomínio não foi encontrado.",
 
   CONDO_ADMIN_DATA_MISSING:
     "O condomínio precisa ter nome, nome do responsável e e-mail administrativo cadastrados.",
@@ -63,13 +63,22 @@ const MENSAGENS_ERRO = {
     "O vínculo entre o administrador e o condomínio não corresponde ao cadastro atual.",
 
   PROFILE_CREATE_FAILED:
-    "A conta foi iniciada, mas não foi possível criar o perfil administrativo. Verifique o Firebase antes de tentar novamente.",
+    "Não foi possível criar o perfil administrativo no Firestore.",
 
   PROFILE_NOT_FOUND:
     "O perfil deste usuário não foi encontrado no Firestore.",
 
   PROFILE_NOT_EDITABLE:
     "Este tipo de perfil não pode ser alterado por esta operação.",
+
+  PROFILE_DELETE_FAILED:
+    "Não foi possível concluir a exclusão do perfil no Firestore.",
+
+  AUTH_DELETE_FAILED:
+    "Não foi possível excluir a conta no Firebase Authentication.",
+
+  ROLLBACK_FAILED:
+    "Ocorreu uma falha na operação e não foi possível restaurar os dados anteriores. Verifique o Firebase antes de tentar novamente.",
 
   FIRESTORE_READ_FAILED:
     "Não foi possível consultar os dados no Firestore.",
@@ -96,7 +105,7 @@ const MENSAGENS_ERRO = {
     "Não foi possível atualizar os dados da conta no Firebase Authentication.",
 
   AUTH_ROLLBACK_FAILED:
-    "Ocorreu uma falha na sincronização e não foi possível restaurar os dados anteriores. Verifique o cadastro antes de tentar novamente.",
+    "Ocorreu uma falha na sincronização e não foi possível restaurar os dados anteriores.",
 
   EMAIL_SYNC_REQUIRED:
     "O e-mail do Firebase Authentication está diferente do Firestore. Atualize e sincronize o cadastro antes de enviar a redefinição de senha.",
@@ -107,21 +116,30 @@ const MENSAGENS_ERRO = {
   PASSWORD_RESET_SEND_FAILED:
     "Não foi possível enviar o e-mail de redefinição de senha.",
 
-  ROLLBACK_FAILED:
-    "Ocorreu uma falha ao concluir a operação. Verifique o Firebase antes de tentar novamente.",
+  FIRST_ACCESS_NOT_REQUIRED:
+    "Esta conta não possui uma troca de senha pendente.",
+
+  WEAK_PASSWORD:
+    "A senha precisa ter pelo menos 8 caracteres.",
+
+  PASSWORD_CHANGE_FAILED:
+    "Não foi possível alterar a senha do usuário.",
+
+  PASSWORD_CHANGED_PROFILE_PENDING:
+    "A senha foi alterada, mas não foi possível atualizar o perfil do usuário.",
 
   INVALID_JSON:
     "O serviço recebeu dados inválidos.",
 
   ORIGIN_NOT_ALLOWED:
-    "A origem desta solicitação não está autorizada.",
+    "Esta origem não está autorizada a acessar o serviço.",
 
   INTERNAL_ERROR:
     "Ocorreu um erro interno no serviço. Tente novamente.",
 };
 
 /* ======================================================
-   VALIDAÇÃO DO SUPER ADMIN
+   VALIDAR SUPER ADMIN
 ====================================================== */
 
 function obterUsuarioSuperAdmin() {
@@ -153,7 +171,15 @@ async function chamarWorker(
 ) {
   const usuarioAtual = obterUsuarioSuperAdmin();
 
-  const token = await usuarioAtual.getIdToken(true);
+  let token;
+
+  try {
+    token = await usuarioAtual.getIdToken(true);
+  } catch {
+    throw new Error(
+      "Não foi possível validar sua sessão. Entre novamente no Morada Oficial."
+    );
+  }
 
   let resposta;
 
@@ -243,14 +269,16 @@ export async function criarContaAdminTemporaria({
 }
 
 /* ======================================================
-   ATUALIZAR CADASTRO DE USUÁRIO EXISTENTE
-   Atualiza o mesmo UID no Authentication e Firestore.
+   ATUALIZAR USUÁRIO EXISTENTE
+   Mantém o UID original.
 ====================================================== */
 
 export async function atualizarUsuarioAdministrativo({
   uid,
   email,
   nome,
+  telefone,
+  ativo,
 }) {
   const uidNormalizado = String(uid || "").trim();
 
@@ -267,20 +295,30 @@ export async function atualizarUsuarioAdministrativo({
   }
 
   if (!emailNormalizado) {
-    throw new Error("Informe o novo e-mail do usuário.");
+    throw new Error("Informe o e-mail do usuário.");
   }
 
   if (!nomeNormalizado) {
     throw new Error("Informe o nome do usuário.");
   }
 
+  const dados = {
+    uid: uidNormalizado,
+    email: emailNormalizado,
+    nome: nomeNormalizado,
+  };
+
+  if (typeof telefone === "string") {
+    dados.telefone = telefone.trim();
+  }
+
+  if (typeof ativo === "boolean") {
+    dados.ativo = ativo;
+  }
+
   const resultado = await chamarWorker(
     "/admin/update-user",
-    {
-      uid: uidNormalizado,
-      email: emailNormalizado,
-      nome: nomeNormalizado,
-    },
+    dados,
     "Não foi possível conectar ao serviço de atualização de usuários."
   );
 
@@ -295,12 +333,13 @@ export async function atualizarUsuarioAdministrativo({
     email: resultado.email,
     nome: resultado.nome,
     perfil: resultado.perfil,
+    telefone: resultado.telefone,
+    ativo: resultado.ativo,
   };
 }
 
 /* ======================================================
-   ENVIAR E-MAIL DE REDEFINIÇÃO DE SENHA
-   O Worker identifica o e-mail pela conta existente.
+   ENVIAR REDEFINIÇÃO DE SENHA
 ====================================================== */
 
 export async function enviarRedefinicaoSenha({ uid }) {
@@ -330,5 +369,40 @@ export async function enviarRedefinicaoSenha({ uid }) {
     uid: resultado.uid,
     email: resultado.email,
     enviado: true,
+  };
+}
+
+/* ======================================================
+   EXCLUIR USUÁRIO ADMINISTRATIVO
+====================================================== */
+
+export async function excluirUsuarioAdministrativo({ uid }) {
+  const uidNormalizado = String(uid || "").trim();
+
+  if (!uidNormalizado) {
+    throw new Error(
+      "Não foi possível identificar o usuário que será excluído."
+    );
+  }
+
+  const resultado = await chamarWorker(
+    "/admin/delete-user",
+    {
+      uid: uidNormalizado,
+    },
+    "Não foi possível conectar ao serviço de exclusão de usuários."
+  );
+
+  if (!resultado.excluido || !resultado.uid) {
+    throw new Error(
+      "O serviço não confirmou a exclusão da conta."
+    );
+  }
+
+  return {
+    uid: resultado.uid,
+    excluido: true,
+    condominioDesvinculado:
+      resultado.condominioDesvinculado === true,
   };
 }

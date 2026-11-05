@@ -1,18 +1,16 @@
-
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   collection,
-  doc,
-  getDoc,
   getDocs,
   query,
   where,
-  writeBatch,
-  serverTimestamp,
 } from "firebase/firestore";
-
-import { sendPasswordResetEmail } from "firebase/auth";
 
 import {
   Search,
@@ -32,9 +30,16 @@ import {
   Phone,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 
-import { auth, db } from "@/auth/firebase";
+import { db } from "@/auth/firebase";
+
+import {
+  atualizarUsuarioAdministrativo,
+  enviarRedefinicaoSenha,
+  excluirUsuarioAdministrativo,
+} from "@/auth/moradaApi";
 
 /* =========================================================
    PERFIS ADMINISTRATIVOS
@@ -71,32 +76,41 @@ function obterPerfil(usuario) {
 }
 
 function usuarioEstaAtivo(usuario) {
-  const status = String(usuario?.status || "").toLowerCase();
+  const status = String(
+    usuario?.status || ""
+  ).toLowerCase();
 
   return (
     usuario?.ativo !== false &&
     usuario?.active !== false &&
-    !["inativo", "inactive", "bloqueado", "blocked"].includes(status)
+    ![
+      "inativo",
+      "inactive",
+      "bloqueado",
+      "blocked",
+    ].includes(status)
   );
 }
 
 function obterMensagemErro(error) {
   if (error?.code === "permission-denied") {
     return (
-      "O Firebase não autorizou a consulta ou alteração. " +
+      "O Firebase não autorizou a consulta. " +
       "Precisamos verificar as regras de segurança do Firestore."
     );
   }
 
-  if (error?.code === "auth/invalid-email") {
-    return "O e-mail cadastrado para este administrador é inválido.";
-  }
-
   if (error?.code === "auth/network-request-failed") {
-    return "Não foi possível conectar ao Firebase. Verifique sua internet.";
+    return (
+      "Não foi possível conectar ao Firebase. " +
+      "Verifique sua internet."
+    );
   }
 
-  return error?.message || "Não foi possível concluir a operação.";
+  return (
+    error?.message ||
+    "Não foi possível concluir a operação."
+  );
 }
 
 /* =========================================================
@@ -112,15 +126,18 @@ export default function MinhaAreaAdmin() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [enviandoSenha, setEnviandoSenha] = useState("");
+  const [excluindo, setExcluindo] = useState(false);
 
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
 
   const [adminVisualizado, setAdminVisualizado] = useState(null);
   const [adminEditando, setAdminEditando] = useState(null);
+  const [adminParaExcluir, setAdminParaExcluir] = useState(null);
 
   const [formulario, setFormulario] = useState({
     nome: "",
+    email: "",
     telefone: "",
     ativo: true,
   });
@@ -196,7 +213,9 @@ export default function MinhaAreaAdmin() {
         admin.condominio,
         admin.perfilLabel,
       ].some((valor) =>
-        String(valor || "").toLowerCase().includes(termo)
+        String(valor || "")
+          .toLowerCase()
+          .includes(termo)
       );
 
       const status = admin.ativo ? "Ativo" : "Inativo";
@@ -244,6 +263,8 @@ export default function MinhaAreaAdmin() {
   ======================================================= */
 
   function visualizarAdministrador(admin) {
+    setErro("");
+    setSucesso("");
     setAdminVisualizado(admin);
   }
 
@@ -257,6 +278,7 @@ export default function MinhaAreaAdmin() {
 
     setFormulario({
       nome: admin.nome || "",
+      email: admin.email || "",
       telefone: admin.telefone || "",
       ativo: admin.ativo,
     });
@@ -277,6 +299,7 @@ export default function MinhaAreaAdmin() {
 
   /* =======================================================
      SALVAR ALTERAÇÕES
+     Atualiza Authentication e Firestore pelo Worker.
   ======================================================= */
 
   async function salvarAlteracoes(evento) {
@@ -284,11 +307,27 @@ export default function MinhaAreaAdmin() {
 
     if (!adminEditando || salvando) return;
 
-    const nome = String(formulario.nome || "").trim();
-    const telefone = String(formulario.telefone || "").trim();
+    const nome = String(
+      formulario.nome || ""
+    ).trim();
+
+    const email = String(
+      formulario.email || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const telefone = String(
+      formulario.telefone || ""
+    ).trim();
 
     if (!nome) {
       setErro("Informe o nome do administrador.");
+      return;
+    }
+
+    if (!email) {
+      setErro("Informe o e-mail do administrador.");
       return;
     }
 
@@ -302,81 +341,28 @@ export default function MinhaAreaAdmin() {
     setSucesso("");
 
     try {
-      const usuarioRef = doc(
-        db,
-        "usuarios",
-        adminEditando.id
-      );
-
-      const batch = writeBatch(db);
-
-      const ativo = formulario.ativo === true;
-
-      batch.update(usuarioRef, {
+      await atualizarUsuarioAdministrativo({
+        uid: adminEditando.id,
         nome,
+        email,
         telefone,
-        ativo,
-        active: ativo,
-        status: ativo ? "Ativo" : "Inativo",
-        updatedAt: serverTimestamp(),
+        ativo: formulario.ativo === true,
       });
-
-      /*
-       * Se este for o administrador principal do condomínio,
-       * também atualizamos o nome do responsável no cadastro
-       * do próprio condomínio.
-       */
-
-      const condominioId =
-        adminEditando.condominio_id ||
-        adminEditando.condominioId ||
-        "";
-
-      if (condominioId) {
-        const condominioRef = doc(
-          db,
-          "condominios",
-          String(condominioId)
-        );
-
-        const condominioSnap = await getDoc(condominioRef);
-
-        if (condominioSnap.exists()) {
-          const dadosCondominio = condominioSnap.data();
-
-          const acesso =
-            dadosCondominio.acessoAdministrativo || {};
-
-          if (acesso.adminUid === adminEditando.id) {
-            batch.update(condominioRef, {
-              nomeResponsavelAdmin: nome,
-              "acessoAdministrativo.nomeResponsavelAdmin": nome,
-              updatedAt: serverTimestamp(),
-              "acessoAdministrativo.updatedAt": serverTimestamp(),
-            });
-          }
-        }
-      }
-
-      await batch.commit();
-
-      setAdministradores((atuais) =>
-        atuais.map((admin) =>
-          admin.id === adminEditando.id
-            ? {
-                ...admin,
-                nome,
-                telefone,
-                ativo,
-                status: ativo ? "Ativo" : "Inativo",
-              }
-            : admin
-        )
-      );
 
       setAdminEditando(null);
 
-      setSucesso("Dados do administrador atualizados com sucesso.");
+      setFormulario({
+        nome: "",
+        email: "",
+        telefone: "",
+        ativo: true,
+      });
+
+      setSucesso(
+        "Dados do administrador atualizados com sucesso."
+      );
+
+      await carregarAdministradores();
     } catch (error) {
       console.error(
         "[MINHA ÁREA] Erro ao salvar administrador:",
@@ -390,15 +376,13 @@ export default function MinhaAreaAdmin() {
   }
 
   /* =======================================================
-     ENVIAR RECUPERAÇÃO DE SENHA
+     ENVIAR RECUPERAÇÃO DE SENHA PELO WORKER
   ======================================================= */
 
   async function redefinirSenha(admin) {
-    const email = String(admin.email || "").trim();
-
-    if (!email) {
+    if (!admin?.id) {
       setErro(
-        "Este administrador não possui um e-mail cadastrado."
+        "Não foi possível identificar esta conta."
       );
       return;
     }
@@ -408,10 +392,12 @@ export default function MinhaAreaAdmin() {
     setSucesso("");
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      const resultado = await enviarRedefinicaoSenha({
+        uid: admin.id,
+      });
 
       setSucesso(
-        `Enviamos um link de recuperação de senha para ${email}.`
+        `Enviamos um link de recuperação de senha para ${resultado.email}.`
       );
     } catch (error) {
       console.error(
@@ -426,14 +412,75 @@ export default function MinhaAreaAdmin() {
   }
 
   /* =======================================================
+     ABRIR CONFIRMAÇÃO DE EXCLUSÃO
+  ======================================================= */
+
+  function abrirExclusao(admin) {
+    setErro("");
+    setSucesso("");
+    setAdminParaExcluir(admin);
+  }
+
+  /* =======================================================
+     FECHAR CONFIRMAÇÃO DE EXCLUSÃO
+  ======================================================= */
+
+  function fecharExclusao() {
+    if (excluindo) return;
+
+    setAdminParaExcluir(null);
+    setErro("");
+  }
+
+  /* =======================================================
+     EXCLUIR ADMINISTRADOR PELO WORKER
+  ======================================================= */
+
+  async function confirmarExclusao() {
+    if (!adminParaExcluir || excluindo) return;
+
+    setExcluindo(true);
+    setErro("");
+    setSucesso("");
+
+    try {
+      const resultado = await excluirUsuarioAdministrativo({
+        uid: adminParaExcluir.id,
+      });
+
+      setAdminParaExcluir(null);
+      setAdminVisualizado(null);
+      setAdminEditando(null);
+
+      setSucesso(
+        resultado.condominioDesvinculado
+          ? "Administrador excluído. O acesso administrativo do condomínio voltou ao estado pendente."
+          : "Administrador excluído com sucesso."
+      );
+
+      await carregarAdministradores();
+    } catch (error) {
+      console.error(
+        "[MINHA ÁREA] Erro ao excluir administrador:",
+        error
+      );
+
+      setErro(obterMensagemErro(error));
+    } finally {
+      setExcluindo(false);
+    }
+  }
+
+  /* =======================================================
      FECHAR MODAIS
   ======================================================= */
 
   function fecharModais() {
-    if (salvando) return;
+    if (salvando || excluindo) return;
 
     setAdminVisualizado(null);
     setAdminEditando(null);
+    setAdminParaExcluir(null);
     setErro("");
   }
 
@@ -481,7 +528,9 @@ export default function MinhaAreaAdmin() {
             "
           >
             <RefreshCw
-              className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${
+                carregando ? "animate-spin" : ""
+              }`}
             />
           </button>
         </div>
@@ -498,14 +547,16 @@ export default function MinhaAreaAdmin() {
         </div>
       </header>
 
-      {/* MENSAGENS */}
+      {/* MENSAGEM DE ERRO */}
 
-      {erro && !adminEditando && (
+      {erro && !adminEditando && !adminParaExcluir && (
         <div className="flex items-start gap-3 rounded-xl border border-red-300/20 bg-red-400/10 p-4 text-sm text-red-200">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
           <span>{erro}</span>
         </div>
       )}
+
+      {/* MENSAGEM DE SUCESSO */}
 
       {sucesso && (
         <div className="flex items-start gap-3 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
@@ -632,15 +683,32 @@ export default function MinhaAreaAdmin() {
         {/* TABELA */}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left">
+          <table className="w-full min-w-[950px] text-left">
             <thead className="bg-white/[0.04]">
               <tr className="text-xs uppercase tracking-wider text-white/60">
-                <th className="px-5 py-4 font-medium">Administrador</th>
-                <th className="px-5 py-4 font-medium">Telefone</th>
-                <th className="px-5 py-4 font-medium">Condomínio</th>
-                <th className="px-5 py-4 font-medium">Perfil</th>
-                <th className="px-5 py-4 font-medium">Status</th>
-                <th className="px-5 py-4 text-right font-medium">Ações</th>
+                <th className="px-5 py-4 font-medium">
+                  Administrador
+                </th>
+
+                <th className="px-5 py-4 font-medium">
+                  Telefone
+                </th>
+
+                <th className="px-5 py-4 font-medium">
+                  Condomínio
+                </th>
+
+                <th className="px-5 py-4 font-medium">
+                  Perfil
+                </th>
+
+                <th className="px-5 py-4 font-medium">
+                  Status
+                </th>
+
+                <th className="px-5 py-4 text-right font-medium">
+                  Ações
+                </th>
               </tr>
             </thead>
 
@@ -698,7 +766,7 @@ export default function MinhaAreaAdmin() {
                     </td>
 
                     <td className="px-5 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           title="Visualizar administrador"
@@ -735,6 +803,15 @@ export default function MinhaAreaAdmin() {
                           ) : (
                             <KeyRound className="h-4 w-4" />
                           )}
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Excluir administrador"
+                          onClick={() => abrirExclusao(admin)}
+                          className="rounded-lg p-2 text-red-300/80 transition hover:bg-red-400/10 hover:text-red-200"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
@@ -788,11 +865,35 @@ export default function MinhaAreaAdmin() {
       ===================================================== */}
 
       {adminVisualizado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm">
-          <section className="my-auto w-full max-w-lg rounded-2xl border border-white/15 bg-[#26382F] p-6 shadow-2xl">
+        <div
+          className="
+            fixed inset-0 z-[100]
+            flex items-center justify-center
+            overflow-y-auto
+            bg-black/65 p-4 backdrop-blur-sm
+          "
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              fecharModais();
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-visualizacao-admin"
+            className="
+              my-auto w-full max-w-lg
+              rounded-2xl border border-white/15
+              bg-[#26382F] p-6 shadow-2xl
+            "
+          >
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <h2
+                  id="titulo-visualizacao-admin"
+                  className="text-xl font-semibold text-white"
+                >
                   Administrador
                 </h2>
 
@@ -804,13 +905,14 @@ export default function MinhaAreaAdmin() {
               <button
                 type="button"
                 onClick={fecharModais}
+                aria-label="Fechar"
                 className="rounded-lg p-2 text-white/65 transition hover:bg-white/10 hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-5">
               <div>
                 <p className="text-xs text-white/55">Nome</p>
                 <p className="mt-1 font-medium text-white">
@@ -818,18 +920,26 @@ export default function MinhaAreaAdmin() {
                 </p>
               </div>
 
-              <div>
-                <p className="text-xs text-white/55">E-mail</p>
-                <p className="mt-1 break-all text-white">
-                  {adminVisualizado.email || "Não informado"}
-                </p>
+              <div className="flex items-start gap-3">
+                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[#9BC5A0]" />
+
+                <div className="min-w-0">
+                  <p className="text-xs text-white/55">E-mail</p>
+                  <p className="mt-1 break-all text-white">
+                    {adminVisualizado.email || "Não informado"}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <p className="text-xs text-white/55">Telefone</p>
-                <p className="mt-1 text-white">
-                  {adminVisualizado.telefone || "Não informado"}
-                </p>
+              <div className="flex items-start gap-3">
+                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[#9BC5A0]" />
+
+                <div>
+                  <p className="text-xs text-white/55">Telefone</p>
+                  <p className="mt-1 text-white">
+                    {adminVisualizado.telefone || "Não informado"}
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -863,7 +973,12 @@ export default function MinhaAreaAdmin() {
             <button
               type="button"
               onClick={fecharModais}
-              className="mt-7 w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+              className="
+                mt-7 w-full rounded-xl
+                border border-white/15 bg-white/10
+                px-4 py-3 text-sm font-semibold text-white
+                transition hover:bg-white/15
+              "
             >
               Fechar
             </button>
@@ -876,11 +991,35 @@ export default function MinhaAreaAdmin() {
       ===================================================== */}
 
       {adminEditando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm">
-          <section className="my-auto w-full max-w-lg rounded-2xl border border-white/15 bg-[#26382F] p-6 shadow-2xl">
+        <div
+          className="
+            fixed inset-0 z-[100]
+            flex items-center justify-center
+            overflow-y-auto
+            bg-black/65 p-4 backdrop-blur-sm
+          "
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              fecharModais();
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-edicao-admin"
+            className="
+              my-auto w-full max-w-lg
+              rounded-2xl border border-white/15
+              bg-[#26382F] p-6 shadow-2xl
+            "
+          >
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <h2
+                  id="titulo-edicao-admin"
+                  className="text-xl font-semibold text-white"
+                >
                   Editar administrador
                 </h2>
 
@@ -893,14 +1032,17 @@ export default function MinhaAreaAdmin() {
                 type="button"
                 onClick={fecharModais}
                 disabled={salvando}
+                aria-label="Fechar"
                 className="rounded-lg p-2 text-white/65 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={salvarAlteracoes} className="mt-6 space-y-4">
-
+            <form
+              onSubmit={salvarAlteracoes}
+              className="mt-6 space-y-4"
+            >
               <div>
                 <label className="mb-2 block text-sm font-medium text-white">
                   Nome completo
@@ -934,22 +1076,27 @@ export default function MinhaAreaAdmin() {
 
                 <input
                   type="email"
-                  value={adminEditando.email || ""}
-                  readOnly
+                  value={formulario.email}
+                  onChange={(event) =>
+                    alterarCampo("email", event.target.value)
+                  }
+                  required
+                  disabled={salvando}
                   className="
                     w-full rounded-xl
-                    border border-white/10
-                    bg-white/[0.04]
+                    border border-white/15
+                    bg-white/[0.08]
                     px-4 py-3
-                    text-sm text-white/55
+                    text-sm text-white
                     outline-none
-                    cursor-not-allowed
+                    placeholder:text-white/40
+                    focus:border-[#6F9272]
                   "
                 />
 
                 <p className="mt-1 text-xs text-white/50">
-                  O e-mail de login precisa ser alterado pelo serviço
-                  seguro de autenticação, não apenas pelo cadastro.
+                  O novo e-mail será atualizado também na conta
+                  de autenticação do Firebase.
                 </p>
               </div>
 
@@ -1034,7 +1181,13 @@ export default function MinhaAreaAdmin() {
                   type="button"
                   onClick={fecharModais}
                   disabled={salvando}
-                  className="rounded-xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-50"
+                  className="
+                    rounded-xl border border-white/15
+                    bg-white/10 px-5 py-3
+                    text-sm font-semibold text-white
+                    transition hover:bg-white/15
+                    disabled:opacity-50
+                  "
                 >
                   Cancelar
                 </button>
@@ -1062,6 +1215,126 @@ export default function MinhaAreaAdmin() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {/* =====================================================
+          MODAL DE CONFIRMAÇÃO DE EXCLUSÃO
+      ===================================================== */}
+
+      {adminParaExcluir && (
+        <div
+          className="
+            fixed inset-0 z-[110]
+            flex items-center justify-center
+            overflow-y-auto
+            bg-black/70 p-4 backdrop-blur-sm
+          "
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              fecharExclusao();
+            }
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="titulo-exclusao-admin"
+            className="
+              my-auto w-full max-w-md
+              rounded-2xl border border-white/15
+              bg-[#26382F] p-6 shadow-2xl
+            "
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-400/10">
+                <Trash2 className="h-6 w-6 text-red-300" />
+              </div>
+
+              <div>
+                <h2
+                  id="titulo-exclusao-admin"
+                  className="text-xl font-semibold text-white"
+                >
+                  Excluir administrador?
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  Você está prestes a excluir o acesso de:
+                </p>
+
+                <p className="mt-2 break-words font-semibold text-white">
+                  {adminParaExcluir.nome}
+                </p>
+
+                <p className="mt-1 break-all text-sm text-white/65">
+                  {adminParaExcluir.email}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-red-300/15 bg-red-400/[0.06] p-4">
+              <p className="text-sm leading-6 text-white/80">
+                A conta será removida do Firebase Authentication
+                e o perfil correspondente será excluído do Firestore.
+                Os dados do condomínio serão preservados.
+              </p>
+
+              <p className="mt-2 text-sm font-medium text-white">
+                Esta operação não poderá ser desfeita automaticamente.
+              </p>
+            </div>
+
+            {erro && (
+              <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{erro}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={fecharExclusao}
+                disabled={excluindo}
+                className="
+                  rounded-xl border border-white/15
+                  bg-white/10 px-5 py-3
+                  text-sm font-semibold text-white
+                  transition hover:bg-white/15
+                  disabled:opacity-50
+                "
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarExclusao}
+                disabled={excluindo}
+                className="
+                  inline-flex items-center justify-center gap-2
+                  rounded-xl bg-red-500/80
+                  px-5 py-3
+                  text-sm font-semibold text-white
+                  transition hover:bg-red-500
+                  disabled:cursor-not-allowed disabled:opacity-60
+                "
+              >
+                {excluindo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Confirmar exclusão
+                  </>
+                )}
+              </button>
+            </div>
           </section>
         </div>
       )}

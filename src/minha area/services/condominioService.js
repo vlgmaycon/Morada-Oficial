@@ -1,5 +1,8 @@
-
 import { db } from "@/auth/firebase";
+
+import {
+  excluirUsuarioAdministrativo,
+} from "@/auth/moradaApi";
 
 import {
   collection,
@@ -43,13 +46,16 @@ function gerarIdentificadorAdministrativo(nome = "") {
  *
  * Dados pessoais e administrativos permanecem privados.
  */
+
 function criarDadosPublicos(dados = {}) {
   return {
     nome: normalizarTexto(dados.nome) || "Condomínio sem nome",
+
     endereco:
       typeof dados.endereco === "string"
         ? dados.endereco
         : String(dados.endereco?.rua || ""),
+
     numero: String(dados.numero || ""),
     bairro: String(dados.bairro || ""),
     cidade: String(dados.cidade || ""),
@@ -83,7 +89,12 @@ export async function listarCondominios() {
 ====================================================== */
 
 export async function buscarCondominio(id) {
-  const referencia = doc(db, CONDOMINIOS_COLLECTION, id);
+  const referencia = doc(
+    db,
+    CONDOMINIOS_COLLECTION,
+    id
+  );
+
   const snapshot = await getDoc(referencia);
 
   if (!snapshot.exists()) return null;
@@ -130,6 +141,7 @@ export async function criarCondominio(dados) {
    * Os metadados administrativos são definidos pelo serviço,
    * não pelos valores recebidos diretamente do formulário.
    */
+
   const {
     acessoAdministrativo: _acessoInformado,
     ...dadosCondominio
@@ -147,17 +159,26 @@ export async function criarCondominio(dados) {
 
   const dadosPrivados = {
     ...dadosCondominio,
+
     nome,
+
     nomeResponsavelAdmin,
+
     email: normalizarEmail(dadosCondominio.email),
+
     emailResponsavelAdmin,
 
     acessoAdministrativo: {
       identificador: gerarIdentificadorAdministrativo(nome),
+
       status: "pendente",
+
       nomeResponsavelAdmin,
+
       emailResponsavelAdmin,
+
       adminUid: null,
+
       primeiroAcessoConcluido: false,
     },
 
@@ -249,6 +270,7 @@ export async function editarCondominio(id, dados) {
    *
    * Um acesso já configurado não é recriado automaticamente.
    */
+
   if (!acessoAtual || acessoAtual.status === "pendente") {
     const nomeResponsavelAdmin = normalizarTexto(
       dadosAtualizados.nomeResponsavelAdmin ||
@@ -262,13 +284,19 @@ export async function editarCondominio(id, dados) {
 
     dadosAtualizacao.acessoAdministrativo = {
       ...(acessoAtual || {}),
+
       identificador: gerarIdentificadorAdministrativo(
         dadosAtualizados.nome
       ),
+
       status: acessoAtual?.status || "pendente",
+
       nomeResponsavelAdmin,
+
       emailResponsavelAdmin,
+
       adminUid: acessoAtual?.adminUid ?? null,
+
       primeiroAcessoConcluido:
         acessoAtual?.primeiroAcessoConcluido ?? false,
     };
@@ -289,11 +317,6 @@ export async function editarCondominio(id, dados) {
 
   batch.update(referenciaPrivada, dadosAtualizacao);
 
-  /*
-   * O catálogo público recebe somente os campos permitidos.
-   * Nome e e-mail do responsável administrativo não são
-   * publicados nesse catálogo.
-   */
   batch.set(
     referenciaPublica,
     criarDadosPublicos(dadosAtualizados)
@@ -308,10 +331,16 @@ export async function editarCondominio(id, dados) {
 
 /* ======================================================
    EXCLUIR CONDOMÍNIO
-   Remove os dois documentos do cadastro.
+   Remove também o administrador principal vinculado.
 ====================================================== */
 
 export async function excluirCondominio(id) {
+  if (!id) {
+    throw new Error(
+      "Não foi possível identificar o condomínio para exclusão."
+    );
+  }
+
   const referenciaPrivada = doc(
     db,
     CONDOMINIOS_COLLECTION,
@@ -324,10 +353,55 @@ export async function excluirCondominio(id) {
     id
   );
 
+  /*
+   * Primeiro consulta o documento privado para identificar
+   * o administrador principal vinculado.
+   */
+
+  const snapshot = await getDoc(referenciaPrivada);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      "O condomínio não foi encontrado para exclusão."
+    );
+  }
+
+  const dadosCondominio = snapshot.data();
+
+  const adminUid = normalizarTexto(
+    dadosCondominio.acessoAdministrativo?.adminUid
+  );
+
+  /*
+   * Se existir administrador vinculado, solicita ao Worker
+   * a exclusão da conta no Authentication e do perfil no
+   * Firestore.
+   *
+   * Se o Worker não concluir a exclusão, o condomínio
+   * permanece cadastrado.
+   */
+
+  if (adminUid) {
+    await excluirUsuarioAdministrativo({
+      uid: adminUid,
+    });
+  }
+
+  /*
+   * Depois que o acesso administrativo for tratado,
+   * remove o condomínio privado e seu catálogo público.
+   */
+
   const batch = writeBatch(db);
 
   batch.delete(referenciaPrivada);
+
   batch.delete(referenciaPublica);
 
   await batch.commit();
+
+  return {
+    id,
+    administradorExcluido: Boolean(adminUid),
+  };
 }
